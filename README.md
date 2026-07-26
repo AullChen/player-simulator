@@ -1,16 +1,105 @@
-# player_simulator
+# 球员模拟器
 
-A new Flutter project.
+一个基于 Flutter 的足球职业生涯模拟器。用户可以把概率、关键选择或自定义数据转换成完整球员档案，并调用自有故事 API 生成中文生涯故事。
 
-## Getting Started
+## 已实现模式
 
-This project is a starting point for a Flutter application.
+### 全随机 · 真实概率
 
-A few resources to get you started if this is your first Flutter project:
+- 用五次转盘抽取逐步揭示国籍、惯用脚、身高、位置、青训和完整生涯。
+- 加权生成首秀/退役年龄、初始/巅峰/最终能力、俱乐部轨迹、转会次数与转会费。
+- 生成俱乐部和国家队出场、进球、助攻、冠军、个人荣誉及伤病记录。
+- 支持固定随机种子测试，保证概率引擎可复现。
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+### 模拟球员 · 生涯选择
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- 用户只指定国籍和位置。
+- 在 15、19、24、29、34 岁五个阶段选择不同发展方向。
+- 每次选择独立改变能力、声望、稳定性、出场时间、国家队履历和荣誉。
+
+### 梦想球员 · 自由创作
+
+- 可填写个人信息、位置、惯用脚、身高、青训、能力值、俱乐部顺序和伤病。
+- 可填写俱乐部/国家队数据、转会费、冠军和个人荣誉。
+- 俱乐部列表会自动转换为生涯时间轴。
+
+## 运行
+
+环境要求：Flutter 3.32 或兼容 Dart 3.8 的 Flutter 版本。
+
+```powershell
+flutter pub get
+flutter run
+```
+
+项目没有第三方运行时依赖，可在 Flutter SDK 与 Pub 缓存完整的环境中离线解析。
+
+## 接入故事 API
+
+未配置 API 时，结果页使用本地示例生成器，方便完整演示。配置后，应用会在球员档案生成完成时自动调用远程接口：
+
+```powershell
+flutter run `
+  --dart-define=STORY_API_URL=https://api.example.com/player-story `
+  --dart-define=STORY_API_TOKEN=your-token
+```
+
+请求方式为 `POST`，请求体结构如下：
+
+```json
+{
+  "task": "generate_football_player_story",
+  "language": "zh-CN",
+  "player": {
+    "mode": "random",
+    "personal_information": {},
+    "ability": {},
+    "career_information": {}
+  }
+}
+```
+
+服务端响应可使用以下任一结构：
+
+```json
+{"story": "生成的故事"}
+```
+
+也兼容顶层 `text`、`content`，或 `data.story`。非 2xx 响应和缺少故事字段都会在结果页显示可重试错误。
+
+> `--dart-define` 的值会进入客户端构建产物，不应被当作安全的密钥存储。生产环境应让 `STORY_API_URL` 指向自己的后端代理，由后端持有模型供应商密钥、执行鉴权和限流。Web 端还需要接口允许对应来源的 CORS 请求。
+
+## 真实概率说明
+
+当前版本使用可维护的建模概率表，目标是模拟现代职业足球中的合理分布，而不是宣称已经复刻某个实时全球数据库。国籍、位置、惯用脚、青训等级、转会次数、伤病和成长曲线均使用加权抽样；能力、年龄、位置和统计数据之间存在条件关联。
+
+正式上线前应接入有授权、带版本的数据集，并记录：
+
+- 数据来源、采样时间和覆盖联赛；
+- 在册球员、出场球员还是分钟数加权的统计口径；
+- 缺失值、双国籍、租借、自由转会和退役球员的处理方法；
+- 每次概率表更新的版本与回归结果。
+
+详细方法见 [概率模型说明](docs/probability-model.md)。
+
+## 项目结构
+
+```text
+lib/
+├── data/       # 足球目录与概率表
+├── domain/     # 球员档案、职业章节、统计模型
+├── screens/    # 三种模式、首页和结果档案
+├── services/   # 随机引擎、生涯选择引擎、故事 API
+├── theme/      # 颜色、排版和组件主题
+└── widgets/    # 转盘与通用展示组件
+```
+
+## 验证
+
+```powershell
+flutter analyze
+flutter test
+flutter build web
+```
+
+测试覆盖固定种子复现、100 组随机生涯边界、生涯选择顺序、完整档案生成、API 请求协议、错误状态和首页三模式可见性。
