@@ -8,6 +8,7 @@ import '../services/random_draw_plan.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/probability_wheel.dart';
+import 'dream_mode_screen.dart';
 import 'result_screen.dart';
 
 class RandomModeScreen extends StatefulWidget {
@@ -24,6 +25,9 @@ class _RandomModeScreenState extends State<RandomModeScreen>
   late List<RandomDrawStep> _steps;
   var _step = 0;
   var _spinning = false;
+  var _holdingResult = false;
+
+  bool get _busy => _spinning || _holdingResult;
 
   @override
   void initState() {
@@ -47,7 +51,7 @@ class _RandomModeScreenState extends State<RandomModeScreen>
   }
 
   Future<void> _spin() async {
-    if (_spinning || _step >= _steps.length) return;
+    if (_busy || _step >= _steps.length) return;
     setState(() => _spinning = true);
     if (MediaQuery.disableAnimationsOf(context)) {
       _controller.value = 1;
@@ -56,14 +60,20 @@ class _RandomModeScreenState extends State<RandomModeScreen>
     }
     if (!mounted) return;
     setState(() {
-      _step += 1;
       _spinning = false;
+      _holdingResult = true;
+    });
+    await Future<void>.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    setState(() {
+      _step += 1;
+      _holdingResult = false;
       _controller.reset();
     });
   }
 
   void _finishCurrentTrack() {
-    if (_spinning || _step >= _steps.length) return;
+    if (_busy || _step >= _steps.length) return;
     final track = _steps[_step].track;
     var next = _step;
     while (next < _steps.length && _steps[next].track == track) {
@@ -79,9 +89,43 @@ class _RandomModeScreenState extends State<RandomModeScreen>
     setState(() {
       _step = 0;
       _spinning = false;
+      _holdingResult = false;
       _controller.reset();
       _resetProfile();
     });
+  }
+
+  Future<void> _openEditor() async {
+    if (_busy) return;
+    final currentId = _step < _steps.length ? _steps[_step].id : null;
+    final edited = await Navigator.of(context).push<PlayerProfile>(
+      MaterialPageRoute<PlayerProfile>(
+        builder: (_) =>
+            DreamModeScreen(initialProfile: _profile, returnProfile: true),
+      ),
+    );
+    if (!mounted || edited == null) return;
+    final rebuilt = RandomDrawPlan.build(edited);
+    var nextStep = currentId == null
+        ? rebuilt.length
+        : rebuilt.indexWhere((item) => item.id == currentId);
+    if (nextStep < 0) nextStep = _step.clamp(0, rebuilt.length);
+    setState(() {
+      _profile = edited;
+      _steps = rebuilt;
+      _step = nextStep;
+      _controller.reset();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          context.tr(
+            '修改已保存，依赖字段和时间线已重新校验。',
+            'Changes saved; dependent fields and the timeline were revalidated.',
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -95,7 +139,7 @@ class _RandomModeScreenState extends State<RandomModeScreen>
       title: context.tr('全随机 · 比例转盘', 'Full random · Proportionate wheels'),
       actions: [
         IconButton(
-          onPressed: _spinning ? null : _restart,
+          onPressed: _busy ? null : _restart,
           tooltip: context.tr('重新开始', 'Restart'),
           icon: const Icon(Icons.refresh),
         ),
@@ -184,7 +228,11 @@ class _RandomModeScreenState extends State<RandomModeScreen>
                       ),
                       const SizedBox(height: 5),
                       Text(
-                        _spinning
+                        _holdingResult
+                            ? (context.isEnglish
+                                  ? current.resultEn
+                                  : current.resultZh)
+                            : _spinning
                             ? context.tr('正在决定…', 'Deciding…')
                             : context.tr('等待转盘', 'Waiting for the wheel'),
                         style: const TextStyle(
@@ -197,13 +245,15 @@ class _RandomModeScreenState extends State<RandomModeScreen>
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton(
-                          onPressed: _spinning ? null : _spin,
+                          onPressed: _busy ? null : _spin,
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.gold,
                             foregroundColor: AppColors.navy,
                           ),
                           child: Text(
-                            _spinning
+                            _holdingResult
+                                ? context.tr('结果锁定中…', 'Result held on screen…')
+                                : _spinning
                                 ? context.tr('轮盘转动中…', 'Wheel spinning…')
                                 : context.tr('转动当前轮盘', 'Spin current wheel'),
                           ),
@@ -211,7 +261,7 @@ class _RandomModeScreenState extends State<RandomModeScreen>
                       ),
                       const SizedBox(height: 6),
                       TextButton(
-                        onPressed: _spinning ? null : _finishCurrentTrack,
+                        onPressed: _busy ? null : _finishCurrentTrack,
                         style: TextButton.styleFrom(
                           foregroundColor: Colors.white70,
                         ),
@@ -236,7 +286,8 @@ class _RandomModeScreenState extends State<RandomModeScreen>
                 style: const TextStyle(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 10),
-              for (final step in recent) _RevealRow(step: step),
+              for (final step in recent)
+                _RevealRow(step: step, onEdit: _openEditor),
             ],
             if (_step > 6) ...[
               const SizedBox(height: 2),
@@ -261,12 +312,20 @@ class _RandomModeScreenState extends State<RandomModeScreen>
                   context.tr('打开完整球员档案', 'Open complete player dossier'),
                 ),
               ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: _openEditor,
+                icon: const Icon(Icons.edit_note_outlined),
+                label: Text(
+                  context.tr('手动校正抽取档案', 'Manually revise the drawn dossier'),
+                ),
+              ),
             ],
             const SizedBox(height: 18),
             Text(
               context.tr(
-                '想手动指定任一字段？请使用“梦想球员”模式。',
-                'Want to enter any field manually? Use Dream Player mode.',
+                '点击下方已抽取项目的编辑按钮，可载入完整档案并同步修改相关字段。',
+                'Use the edit button beside a revealed item to revise the full dossier and its dependent fields.',
               ),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,
@@ -459,9 +518,10 @@ class _ProbabilityNote extends StatelessWidget {
 }
 
 class _RevealRow extends StatelessWidget {
-  const _RevealRow({required this.step});
+  const _RevealRow({required this.step, required this.onEdit});
 
   final RandomDrawStep step;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -518,6 +578,13 @@ class _RevealRow extends StatelessWidget {
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
+          ),
+          const SizedBox(width: 4),
+          IconButton(
+            onPressed: onEdit,
+            tooltip: context.tr('手动修改档案', 'Edit dossier'),
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.edit_outlined, size: 18),
           ),
         ],
       ),

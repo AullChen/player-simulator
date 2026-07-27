@@ -16,19 +16,20 @@ class RandomCareerGenerator {
     final developmentAssociation = associationBucket == '其他 FIFA 协会'
         ? _pick(FootballCatalog.otherAssociations)
         : associationBucket;
-    final confederation =
-        FootballCatalog.associationConfederations[developmentAssociation];
-    final homegrownPercent =
-        FootballCatalog.homegrownPercentByConfederation[confederation] ?? 77;
-    final nationality = _random.nextInt(100) < homegrownPercent
-        ? developmentAssociation
-        : _foreignNationality(developmentAssociation);
+    final nationalityConfederation = FootballCatalog
+        .nationalityConfederationWeights
+        .pick(_random);
+    final nationality = FootballCatalog
+        .nationalitiesByConfederation[nationalityConfederation]!
+        .pick(_random);
     final position = FootballCatalog.positions.pick(_random);
     final preferredFoot = FootballCatalog.preferredFeet.pick(_random);
     final academyTier = FootballCatalog.academyTiers.pick(_random);
+    final academyEntryAge = 8 + _random.nextInt(8);
     final debutAge = 16 + _random.nextInt(6);
     final retirementAge = 33 + _random.nextInt(8);
-    final birthYear = 2005 + _random.nextInt(6);
+    final retirementYear = DateTime.now().year - _random.nextInt(5);
+    final birthYear = retirementYear - retirementAge;
     final initialRating = _initialRating(academyTier);
     final peakRating = _peakRating(initialRating);
     final finalRating = max(52, peakRating - 8 - _random.nextInt(15));
@@ -98,6 +99,7 @@ class RandomCareerGenerator {
       primaryPosition: position,
       secondaryPosition: _pick(FootballCatalog.secondaryPositions[position]!),
       academy: academy,
+      academyEntryAge: min(academyEntryAge, debutAge - 1),
       debutAge: debutAge,
       retirementAge: retirementAge,
       initialRating: initialRating,
@@ -107,7 +109,8 @@ class RandomCareerGenerator {
       injuryRecord: _injurySummary(injuryHistory),
       currentClub: lastChapter.club,
       currentLeague: _leagueForClub(lastChapter.club, nationality),
-      joinedClubDate: '01/07/${birthYear + lastContractStartAge}',
+      joinedClubDate: '01/07/${birthYear + lastChapter.age}',
+      contractStartDate: '01/07/${birthYear + lastContractStartAge}',
       contractUntil: '30/06/${birthYear + retirementAge}',
       agent: _pick(FootballCatalog.agents),
       marketValueMillions: marketValueHistory.fold<double>(
@@ -532,17 +535,6 @@ class RandomCareerGenerator {
   String _birthPlace(String nationality) {
     final values = FootballCatalog.birthPlaces[nationality];
     return values == null ? '$nationality某城市' : _pick(values);
-  }
-
-  String _foreignNationality(String developmentAssociation) {
-    for (var attempts = 0; attempts < 20; attempts++) {
-      final candidate = FootballCatalog.nationalities.pick(_random);
-      final nationality = candidate == '其他国家'
-          ? _pick(FootballCatalog.otherAssociations)
-          : candidate;
-      if (nationality != developmentAssociation) return nationality;
-    }
-    return '法国';
   }
 
   List<String> _citizenships(String nationality) {

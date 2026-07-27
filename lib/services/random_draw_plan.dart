@@ -43,32 +43,48 @@ abstract final class RandomDrawPlan {
       ),
     );
 
-    final confederation = FootballCatalog
-        .associationConfederations[profile.developmentAssociation];
-    final homegrown =
-        FootballCatalog.homegrownPercentByConfederation[confederation] ?? 77;
+    final confederation =
+        FootballCatalog.confederationForCountry(profile.nationality) ?? 'UEFA';
     final nationalityRelation =
         profile.nationality == profile.developmentAssociation ? '本土' : '外籍';
     steps.add(
       _step(
+        id: 'nationality_confederation',
+        track: RandomDrawTrack.personal,
+        titleZh: '护照来自哪一个足球大洲',
+        titleEn: 'The football continent on the passport',
+        categoryZh: '国籍所属洲足联',
+        categoryEn: 'Nationality confederation',
+        resultZh: _confederationNameZh(confederation),
+        resultEn: confederation,
+        segments: FootballCatalog.nationalityConfederationWeights,
+        selected: confederation,
+        kind: DrawProbabilityKind.official,
+        noteZh: '由 FIFA 2025 世俱杯完整 81 国球员人数按洲足联聚合。',
+        noteEn:
+            'Aggregated by confederation from FIFA’s complete 81-country 2025 Club World Cup squad table.',
+      ),
+    );
+    steps.add(
+      _step(
         id: 'nationality',
         track: RandomDrawTrack.personal,
-        titleZh: '护照与成长体系是否一致',
-        titleEn: 'Passport versus development system',
-        categoryZh: '国籍',
+        titleZh: '大洲之内，护照落到一个具体国家',
+        titleEn: 'A concrete passport within the selected continent',
+        categoryZh: '具体国籍',
         categoryEn: 'Nationality',
         resultZh: '${profile.nationality} · $nationalityRelation',
         resultEn:
             '${_english(profile.nationality)} · '
             '${nationalityRelation == '本土' ? 'domestic' : 'foreign'}',
-        segments: [
-          WeightedValue('本土', homegrown),
-          WeightedValue('外籍', 100 - homegrown),
-        ],
-        selected: nationalityRelation,
+        segments:
+            FootballCatalog.nationalitiesByConfederation[confederation] ??
+            [WeightedValue(profile.nationality, 1)],
+        selected: profile.nationality,
         kind: DrawProbabilityKind.official,
-        noteZh: 'FIFA 2023 各洲本土/外籍球员占比。',
-        noteEn: 'FIFA 2023 domestic/foreign player share by confederation.',
+        noteZh: 'FIFA 2025 世俱杯完整国籍人数表；不再使用“其他国家”尾部桶。',
+        noteEn:
+            'FIFA’s complete 2025 Club World Cup nationality table, with no “other country” bucket.',
       ),
     );
 
@@ -84,11 +100,17 @@ abstract final class RandomDrawPlan {
         resultZh: profile.birthDate,
         resultEn: profile.birthDate,
         segments: [
-          for (var year = 2005; year <= 2010; year++) WeightedValue('$year', 1),
+          for (
+            var year = DateTime.now().year - 45;
+            year <= DateTime.now().year - 30;
+            year++
+          )
+            WeightedValue('$year', 1),
         ],
         selected: '$birthYear',
-        noteZh: '当前虚构生涯时间窗内等权抽样。',
-        noteEn: 'Uniform sampling within the current fictional career window.',
+        noteZh: '由退役年份和退役年龄反推，保证完整生涯不会无故落到遥远未来。',
+        noteEn:
+            'Derived from retirement year and age so a completed career does not drift into the distant future.',
       ),
     );
     steps.add(
@@ -214,8 +236,8 @@ abstract final class RandomDrawPlan {
         track: RandomDrawTrack.personal,
         titleZh: '职业大门打开',
         titleEn: 'The professional door opens',
-        categoryZh: '首秀年龄',
-        categoryEn: 'Debut age',
+        categoryZh: '进入职业联赛 / 首秀年龄',
+        categoryEn: 'Professional-league entry / debut age',
         value: profile.debutAge,
         values: const [
           WeightedValue(16, 8),
@@ -275,10 +297,29 @@ abstract final class RandomDrawPlan {
   static void _addClubSteps(List<RandomDrawStep> steps, PlayerProfile profile) {
     final academyTier = _academyTier(profile.academy);
     steps.add(
+      _weightedIntStep(
+        id: 'academy_entry_age',
+        track: RandomDrawTrack.club,
+        age: profile.academyEntryAge,
+        titleZh: '第一次走进系统青训',
+        titleEn: 'The first day inside an academy system',
+        categoryZh: '进入青训年龄',
+        categoryEn: 'Academy entry age',
+        value: profile.academyEntryAge,
+        values: [
+          for (var age = 8; age <= 15; age++)
+            WeightedValue(age, age <= 12 ? 16 : 9),
+        ],
+        noteZh: '产品模型；结果始终早于职业首秀年龄。',
+        noteEn:
+            'Product model; the result is always earlier than the professional debut.',
+      ),
+    );
+    steps.add(
       _step(
         id: 'academy_tier',
         track: RandomDrawTrack.club,
-        age: 15,
+        age: profile.academyEntryAge,
         titleZh: '第一套职业训练服',
         titleEn: 'The first professional training kit',
         categoryZh: '青训层级',
@@ -298,7 +339,7 @@ abstract final class RandomDrawPlan {
       _equalStep(
         id: 'academy',
         track: RandomDrawTrack.club,
-        age: 15,
+        age: profile.academyEntryAge,
         titleZh: '塑造技术习惯的地方',
         titleEn: 'Where technique takes shape',
         categoryZh: '青训',
@@ -402,11 +443,57 @@ abstract final class RandomDrawPlan {
       );
     }
 
-    final contractYears = max(
-      1,
-      _yearFromDate(profile.contractUntil) -
-          _yearFromDate(profile.joinedClubDate),
+    final birthYear = _yearFromDate(profile.birthDate);
+    final joinedYear = _yearFromDate(profile.joinedClubDate);
+    final contractStartYear = _yearFromDate(profile.contractStartDate);
+    final contractEndYear = _yearFromDate(profile.contractUntil);
+    steps.add(
+      _step(
+        id: 'current_club_joined_year',
+        track: RandomDrawTrack.club,
+        age: joinedYear - birthYear,
+        titleZh: '最后一站从何时开始',
+        titleEn: 'When the final club chapter begins',
+        categoryZh: '加盟当前俱乐部',
+        categoryEn: 'Joined current club',
+        resultZh: profile.joinedClubDate,
+        resultEn: profile.joinedClubDate,
+        segments: [
+          for (
+            var year = birthYear + profile.debutAge;
+            year <= contractEndYear;
+            year++
+          )
+            WeightedValue('$year', 1),
+        ],
+        selected: '$joinedYear',
+        noteZh: '由首秀和转会时间线派生；零转会时等于职业首秀年份。',
+        noteEn:
+            'Derived from the debut and transfer timeline; with no transfer it equals the debut year.',
+      ),
     );
+    steps.add(
+      _step(
+        id: 'contract_start_year',
+        track: RandomDrawTrack.club,
+        age: contractStartYear - birthYear,
+        titleZh: '末次续约在何时落笔',
+        titleEn: 'When the final contract is signed',
+        categoryZh: '当前合同开始',
+        categoryEn: 'Current contract started',
+        resultZh: profile.contractStartDate,
+        resultEn: profile.contractStartDate,
+        segments: [
+          for (var year = joinedYear; year < contractEndYear; year++)
+            WeightedValue('$year', 1),
+        ],
+        selected: '$contractStartYear',
+        noteZh: '合同开始不会早于加盟俱乐部，也不会晚于退役/合同到期年份。',
+        noteEn:
+            'The contract cannot begin before joining the club or after its end.',
+      ),
+    );
+    final contractYears = max(1, contractEndYear - contractStartYear);
     steps.add(
       _step(
         id: 'contract_length',
@@ -1181,6 +1268,16 @@ abstract final class RandomDrawPlan {
     final match = RegExp(r'(\d{4})').allMatches(date).toList();
     return match.isEmpty ? 2006 : int.parse(match.last.group(1)!);
   }
+
+  static String _confederationNameZh(String value) => switch (value) {
+    'AFC' => '亚洲',
+    'CAF' => '非洲',
+    'Concacaf' => '中北美及加勒比',
+    'CONMEBOL' => '南美洲',
+    'OFC' => '大洋洲',
+    'UEFA' => '欧洲',
+    _ => value,
+  };
 
   static String _english(String value) {
     return const {

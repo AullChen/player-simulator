@@ -9,7 +9,14 @@ import '../widgets/app_scaffold.dart';
 import 'result_screen.dart';
 
 class DreamModeScreen extends StatefulWidget {
-  const DreamModeScreen({super.key});
+  const DreamModeScreen({
+    super.key,
+    this.initialProfile,
+    this.returnProfile = false,
+  });
+
+  final PlayerProfile? initialProfile;
+  final bool returnProfile;
 
   @override
   State<DreamModeScreen> createState() => _DreamModeScreenState();
@@ -22,15 +29,18 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
     'birthDate': TextEditingController(text: '18/06/2006'),
     'birthPlace': TextEditingController(text: '上海'),
     'nationality': TextEditingController(text: '中国'),
+    'developmentAssociation': TextEditingController(text: '中国'),
     'citizenships': TextEditingController(text: '中国'),
     'height': TextEditingController(text: '181'),
     'weight': TextEditingController(text: '74'),
     'shirtNumber': TextEditingController(text: '10'),
     'academy': TextEditingController(text: '梦想足球学院'),
+    'academyEntryAge': TextEditingController(text: '11'),
     'currentClub': TextEditingController(text: '世界全明星'),
     'league': TextEditingController(text: '欧洲顶级联赛'),
     'joined': TextEditingController(text: '01/07/2034'),
-    'contractUntil': TextEditingController(text: '30/06/2038'),
+    'contractStart': TextEditingController(text: '01/07/2040'),
+    'contractUntil': TextEditingController(text: '30/06/2044'),
     'agent': TextEditingController(text: 'Legend Sports'),
     'marketValue': TextEditingController(text: '80.0'),
     'nationalTeam': TextEditingController(text: '中国国家队'),
@@ -79,6 +89,91 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
   String _preferredFoot = '双足';
 
   @override
+  void initState() {
+    super.initState();
+    final profile = widget.initialProfile;
+    if (profile != null) _loadProfile(profile);
+  }
+
+  void _loadProfile(PlayerProfile profile) {
+    final values = <String, String>{
+      'name': profile.name,
+      'birthDate': profile.birthDate,
+      'birthPlace': profile.birthPlace,
+      'nationality': profile.nationality,
+      'developmentAssociation': profile.developmentAssociation,
+      'citizenships': profile.citizenships.join(', '),
+      'height': '${profile.heightCm}',
+      'weight': '${profile.weightKg}',
+      'shirtNumber': '${profile.shirtNumber}',
+      'academy': profile.academy,
+      'academyEntryAge': '${profile.academyEntryAge}',
+      'currentClub': profile.currentClub,
+      'league': profile.currentLeague,
+      'joined': profile.joinedClubDate,
+      'contractStart': profile.contractStartDate,
+      'contractUntil': profile.contractUntil,
+      'agent': profile.agent,
+      'marketValue': profile.marketValueMillions.toStringAsFixed(1),
+      'nationalTeam': profile.nationalTeam,
+      'nationalDebut': profile.nationalTeamDebut,
+      'debut': '${profile.debutAge}',
+      'retirement': '${profile.retirementAge}',
+      'initial': '${profile.initialRating}',
+      'peak': '${profile.peakRating}',
+      'final': '${profile.finalRating}',
+      'style': profile.playStyle,
+      'injury': profile.injuryRecord,
+      'clubs': profile.career.map((chapter) => chapter.club).join(', '),
+      'appearances': '${profile.stats.appearances}',
+      'starts': '${profile.stats.starts}',
+      'substituteAppearances': '${profile.stats.substituteAppearances}',
+      'minutes': '${profile.stats.minutesPlayed}',
+      'goals': '${profile.stats.goals}',
+      'assists': '${profile.stats.assists}',
+      'yellowCards': '${profile.stats.yellowCards}',
+      'secondYellowCards': '${profile.stats.secondYellowCards}',
+      'redCards': '${profile.stats.redCards}',
+      'cleanSheets': '${profile.stats.cleanSheets}',
+      'penalties': '${profile.stats.penaltiesScored}',
+      'caps': '${profile.stats.nationalCaps}',
+      'nationalGoals': '${profile.stats.nationalGoals}',
+      'transferHistory': profile.transferHistory
+          .map(
+            (item) =>
+                '${item.season}|${item.age}|${item.fromClub}|${item.toClub}|'
+                '${item.type}|${item.feeMillions}',
+          )
+          .join('\n'),
+      'injuryHistory': profile.injuryHistory
+          .map(
+            (item) =>
+                '${item.season}|${item.type}|${item.daysAbsent}|'
+                '${item.matchesMissed}',
+          )
+          .join('\n'),
+      'marketValueHistory': profile.marketValueHistory
+          .map((item) => '${item.age}|${item.valueMillions}')
+          .join('\n'),
+      'competitionStats': profile.competitionStats
+          .map(
+            (item) =>
+                '${item.competition}|${item.appearances}|${item.goals}|'
+                '${item.assists}|${item.minutesPlayed}',
+          )
+          .join('\n'),
+      'championships': profile.stats.championships.join(', '),
+      'honors': profile.stats.personalHonors.join(', '),
+    };
+    for (final entry in values.entries) {
+      _controllers[entry.key]!.text = entry.value;
+    }
+    _position = profile.primaryPosition;
+    _secondaryPosition = profile.secondaryPosition;
+    _preferredFoot = profile.preferredFoot;
+  }
+
+  @override
   void dispose() {
     for (final controller in _controllers.values) {
       controller.dispose();
@@ -99,12 +194,13 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final debut = int.parse(_controllers['debut']!.text);
     final retirement = int.parse(_controllers['retirement']!.text);
+    final academyEntry = int.parse(_controllers['academyEntryAge']!.text);
     final initial = int.parse(_controllers['initial']!.text);
     final peak = int.parse(_controllers['peak']!.text);
     final clubs = _csv('clubs');
-    if (retirement <= debut || peak < initial) {
+    if (academyEntry >= debut || retirement <= debut || peak < initial) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('退役年龄需晚于首秀年龄，巅峰能力不能低于初始能力。')),
+        const SnackBar(content: Text('青训年龄需早于首秀；退役需晚于首秀；巅峰能力不能低于初始能力。')),
       );
       return;
     }
@@ -125,11 +221,63 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
       return;
     }
 
-    final chapters = List.generate(clubs.length, (index) {
-      final progress = clubs.length == 1 ? 0.0 : index / (clubs.length - 1);
+    final birthYear = _dateYear(_text('birthDate'));
+    final joinedYear = _dateYear(_text('joined'));
+    final contractStartYear = _dateYear(_text('contractStart'));
+    final contractEndYear = _dateYear(_text('contractUntil'));
+    final transferAges = transfers.map((item) => item.age).toList();
+    final transferOrderValid = _strictlyIncreasing([
+      debut,
+      ...transferAges,
+      retirement,
+    ]);
+    final transferChainValid = transfers.indexed.every((entry) {
+      if (entry.$1 == 0) return true;
+      return transfers[entry.$1 - 1].toClub == entry.$2.fromClub;
+    });
+    if (joinedYear > contractStartYear ||
+        contractStartYear >= contractEndYear ||
+        !transferOrderValid ||
+        !transferChainValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('时间线不一致：加盟 ≤ 合同开始 < 合同到期，且转会年龄必须递增、俱乐部首尾相接。'),
+        ),
+      );
+      return;
+    }
+
+    final chapterClubs = transfers.isEmpty
+        ? clubs
+        : [transfers.first.fromClub, ...transfers.map((item) => item.toClub)];
+    final chapterAges = transfers.isEmpty
+        ? [
+            for (var index = 0; index < clubs.length; index++)
+              debut +
+                  ((retirement - debut) *
+                          (clubs.length == 1 ? 0 : index / clubs.length))
+                      .round(),
+          ]
+        : [debut, ...transferAges];
+    if (chapterClubs.isEmpty ||
+        chapterClubs.last != _text('currentClub') ||
+        joinedYear != birthYear + chapterAges.last ||
+        contractEndYear != birthYear + retirement) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('当前俱乐部、加盟年份或合同到期年份与出生/转会/退役时间线不一致，请一并修正。'),
+        ),
+      );
+      return;
+    }
+
+    final chapters = List.generate(chapterClubs.length, (index) {
+      final progress = chapterClubs.length == 1
+          ? 0.0
+          : index / (chapterClubs.length - 1);
       return CareerChapter(
-        age: debut + ((retirement - debut) * progress).round(),
-        club: clubs[index],
+        age: chapterAges[index],
+        club: chapterClubs[index],
         event: index == 0
             ? '完成职业首秀'
             : index == clubs.length - 1
@@ -143,11 +291,11 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
       (sum, transfer) => sum + transfer.feeMillions,
     );
     final profile = PlayerProfile(
-      mode: CareerMode.dream,
+      mode: widget.initialProfile?.mode ?? CareerMode.dream,
       name: _text('name'),
       birthDate: _text('birthDate'),
       birthPlace: _text('birthPlace'),
-      developmentAssociation: _text('nationality'),
+      developmentAssociation: _text('developmentAssociation'),
       nationality: _text('nationality'),
       citizenships: _csv('citizenships'),
       preferredFoot: _preferredFoot,
@@ -157,6 +305,7 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
       primaryPosition: _position,
       secondaryPosition: _secondaryPosition,
       academy: _text('academy'),
+      academyEntryAge: academyEntry,
       debutAge: debut,
       retirementAge: retirement,
       initialRating: initial,
@@ -167,6 +316,7 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
       currentClub: _text('currentClub'),
       currentLeague: _text('league'),
       joinedClubDate: _text('joined'),
+      contractStartDate: _text('contractStart'),
       contractUntil: _text('contractUntil'),
       agent: _text('agent'),
       marketValueMillions: double.parse(_controllers['marketValue']!.text),
@@ -201,12 +351,28 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
         personalHonors: _csv('honors'),
       ),
     );
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => ResultScreen(profile: profile)),
-    );
+    if (widget.returnProfile) {
+      Navigator.of(context).pop(profile);
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => ResultScreen(profile: profile)),
+      );
+    }
   }
 
   String _text(String key) => _controllers[key]!.text.trim();
+
+  int _dateYear(String value) {
+    final years = RegExp(r'\d{4}').allMatches(value).toList();
+    return years.isEmpty ? -1 : int.parse(years.last.group(0)!);
+  }
+
+  bool _strictlyIncreasing(List<int> values) {
+    for (var index = 1; index < values.length; index++) {
+      if (values[index] <= values[index - 1]) return false;
+    }
+    return true;
+  }
 
   List<String> _csv(String key) {
     return _text(key)
@@ -319,7 +485,7 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: '梦想球员 · 自由创作',
+      title: widget.returnProfile ? '校正抽取档案' : '梦想球员 · 自由创作',
       child: Form(
         key: _formKey,
         child: ContentWidth(
@@ -329,12 +495,14 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
               const SectionLabel('Build your legend'),
               const SizedBox(height: 10),
               Text(
-                '所有数据，\n都由你来定义。',
+                widget.returnProfile ? '修正一项，\n同步整条时间线。' : '所有数据，\n都由你来定义。',
                 style: Theme.of(context).textTheme.displaySmall,
               ),
               const SizedBox(height: 10),
               Text(
-                '下面的字段会原样进入故事生成请求。俱乐部用逗号分隔；结构化记录每行一条，用“|”分隔。',
+                widget.returnProfile
+                    ? '这里载入了刚才的全部抽取结果。保存前会检查青训、首秀、转会、合同和退役年份是否互相一致。'
+                    : '下面的字段会原样进入故事生成请求。俱乐部用逗号分隔；结构化记录每行一条，用“|”分隔。',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 24),
@@ -345,6 +513,7 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
                   _field('birthDate', '出生日期'),
                   _field('birthPlace', '出生地'),
                   _field('nationality', '国籍'),
+                  _field('developmentAssociation', '成长 / 注册协会'),
                   _field('citizenships', '公民身份（逗号分隔）'),
                   _dropdown(
                     label: '主位置',
@@ -381,9 +550,11 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
                 title: '俱乐部、合同与国家队',
                 children: [
                   _field('academy', '青训'),
+                  _field('academyEntryAge', '进入青训年龄', numeric: true),
                   _field('currentClub', '当前 / 最后效力俱乐部'),
                   _field('league', '联赛'),
                   _field('joined', '加盟日期'),
+                  _field('contractStart', '当前合同开始'),
                   _field('contractUntil', '合同到期'),
                   _field('agent', '经纪人'),
                   _field('marketValue', '当前 / 峰值身价（百万欧元）', decimal: true),
@@ -454,8 +625,12 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
               const SizedBox(height: 20),
               FilledButton.icon(
                 onPressed: _submit,
-                icon: const Icon(Icons.auto_awesome),
-                label: const Text('生成梦想球员档案'),
+                icon: Icon(
+                  widget.returnProfile
+                      ? Icons.save_outlined
+                      : Icons.auto_awesome,
+                ),
+                label: Text(widget.returnProfile ? '保存并返回抽取结果' : '生成梦想球员档案'),
               ),
             ],
           ),

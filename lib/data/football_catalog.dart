@@ -112,35 +112,134 @@ abstract final class FootballCatalog {
     'UEFA': 66,
   };
 
-  /// FIFA Club World Cup 2025 squad nationality counts are used for the
-  /// explicitly listed leading nationalities. Smaller selectable groups and
-  /// the remainder bucket preserve global variety without implying false
-  /// precision beyond the published top list.
-  static const nationalities = <WeightedValue<String>>[
-    WeightedValue('巴西', 142),
-    WeightedValue('阿根廷', 104),
-    WeightedValue('西班牙', 54),
-    WeightedValue('葡萄牙', 49),
-    WeightedValue('美国', 42),
-    WeightedValue('墨西哥', 40),
-    WeightedValue('法国', 37),
-    WeightedValue('德国', 36),
-    WeightedValue('意大利', 36),
-    WeightedValue('摩洛哥', 31),
-    WeightedValue('南非', 31),
-    WeightedValue('英格兰', 30),
-    WeightedValue('荷兰', 24),
-    WeightedValue('哥伦比亚', 22),
-    WeightedValue('尼日利亚', 20),
-    WeightedValue('乌拉圭', 19),
-    WeightedValue('塞内加尔', 18),
-    WeightedValue('日本', 18),
-    WeightedValue('韩国', 14),
-    WeightedValue('比利时', 14),
-    WeightedValue('克罗地亚', 12),
-    WeightedValue('中国', 6),
-    WeightedValue('其他国家', 240),
-  ];
+  /// Complete 81-country nationality table published with the FIFA Club
+  /// World Cup 2025 squads, grouped by confederation. The two-stage draw first
+  /// selects a confederation using its subtotal and then a concrete country;
+  /// there is deliberately no ambiguous "other country" bucket.
+  static const nationalitiesByConfederation =
+      <String, List<WeightedValue<String>>>{
+        'AFC': [
+          WeightedValue('日本', 29),
+          WeightedValue('韩国', 27),
+          WeightedValue('沙特阿拉伯', 25),
+          WeightedValue('阿联酋', 8),
+          WeightedValue('中国', 1),
+          WeightedValue('伊朗', 1),
+          WeightedValue('巴勒斯坦', 1),
+          WeightedValue('叙利亚', 1),
+          WeightedValue('乌兹别克斯坦', 1),
+        ],
+        'CAF': [
+          WeightedValue('摩洛哥', 31),
+          WeightedValue('南非', 31),
+          WeightedValue('突尼斯', 25),
+          WeightedValue('埃及', 23),
+          WeightedValue('马里', 8),
+          WeightedValue('尼日利亚', 5),
+          WeightedValue('阿尔及利亚', 4),
+          WeightedValue('加纳', 3),
+          WeightedValue('塞内加尔', 3),
+          WeightedValue('安哥拉', 2),
+          WeightedValue('喀麦隆', 2),
+          WeightedValue('科特迪瓦', 2),
+          WeightedValue('布基纳法索', 1),
+          WeightedValue('刚果（布）', 1),
+          WeightedValue('加蓬', 1),
+          WeightedValue('几内亚', 1),
+          WeightedValue('莫桑比克', 1),
+          WeightedValue('纳米比亚', 1),
+          WeightedValue('坦桑尼亚', 1),
+          WeightedValue('多哥', 1),
+          WeightedValue('乌干达', 1),
+          WeightedValue('津巴布韦', 1),
+        ],
+        'Concacaf': [
+          WeightedValue('墨西哥', 41),
+          WeightedValue('美国', 40),
+          WeightedValue('加拿大', 3),
+          WeightedValue('萨尔瓦多', 2),
+          WeightedValue('多米尼加', 1),
+          WeightedValue('危地马拉', 1),
+          WeightedValue('圭亚那', 1),
+          WeightedValue('海地', 1),
+          WeightedValue('洪都拉斯', 1),
+          WeightedValue('牙买加', 1),
+        ],
+        'CONMEBOL': [
+          WeightedValue('巴西', 141),
+          WeightedValue('阿根廷', 103),
+          WeightedValue('乌拉圭', 24),
+          WeightedValue('哥伦比亚', 14),
+          WeightedValue('智利', 6),
+          WeightedValue('巴拉圭', 6),
+          WeightedValue('委内瑞拉', 6),
+          WeightedValue('厄瓜多尔', 5),
+          WeightedValue('秘鲁', 1),
+        ],
+        'OFC': [WeightedValue('新西兰', 23)],
+        'UEFA': [
+          WeightedValue('西班牙', 54),
+          WeightedValue('葡萄牙', 49),
+          WeightedValue('法国', 37),
+          WeightedValue('德国', 36),
+          WeightedValue('意大利', 36),
+          WeightedValue('英格兰', 25),
+          WeightedValue('奥地利', 13),
+          WeightedValue('瑞典', 9),
+          WeightedValue('比利时', 8),
+          WeightedValue('荷兰', 8),
+          WeightedValue('挪威', 8),
+          WeightedValue('土耳其', 6),
+          WeightedValue('克罗地亚', 5),
+          WeightedValue('塞尔维亚', 5),
+          WeightedValue('瑞士', 5),
+          WeightedValue('丹麦', 4),
+          WeightedValue('波兰', 4),
+          WeightedValue('希腊', 3),
+          WeightedValue('斯洛文尼亚', 3),
+          WeightedValue('乌克兰', 3),
+          WeightedValue('阿尔巴尼亚', 2),
+          WeightedValue('以色列', 2),
+          WeightedValue('卢森堡', 2),
+          WeightedValue('亚美尼亚', 1),
+          WeightedValue('波黑', 1),
+          WeightedValue('格鲁吉亚', 1),
+          WeightedValue('黑山', 1),
+          WeightedValue('爱尔兰', 1),
+          WeightedValue('俄罗斯', 1),
+          WeightedValue('斯洛伐克', 1),
+        ],
+      };
+
+  static final nationalityConfederationWeights = nationalitiesByConfederation
+      .entries
+      .map(
+        (entry) => WeightedValue(
+          entry.key,
+          entry.value.fold<int>(0, (total, country) => total + country.weight),
+        ),
+      )
+      .toList(growable: false);
+
+  static final nationalities = nationalitiesByConfederation.values
+      .expand((countries) => countries)
+      .toList(growable: false);
+
+  static String? confederationForCountry(String country) {
+    final reported = associationConfederations[country];
+    if (reported != null) return reported;
+    for (final entry in nationalitiesByConfederation.entries) {
+      if (entry.value.any((item) => item.value == country)) return entry.key;
+    }
+    return const {
+      '澳大利亚': 'AFC',
+      '印度': 'AFC',
+      '泰国': 'AFC',
+      '印度尼西亚': 'AFC',
+      '斐济': 'OFC',
+      '刚果（金）': 'CAF',
+    }[country];
+  }
 
   static const positions = <WeightedValue<String>>[
     WeightedValue('门将', 9),

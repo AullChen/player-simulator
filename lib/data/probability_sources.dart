@@ -19,7 +19,7 @@ class ProbabilitySource {
 }
 
 abstract final class ProbabilitySources {
-  static const dataVersion = '2026.07-public-v2';
+  static const dataVersion = '2026.07-public-v3';
 
   static const sources = <ProbabilitySource>[
     ProbabilitySource(
@@ -43,13 +43,13 @@ abstract final class ProbabilitySources {
     ),
     ProbabilitySource(
       id: 'fifa-club-world-cup-squads-2025',
-      title: 'The squads in stats — FIFA Club World Cup 2025',
+      title: 'FIFA Club World Cup 2025 squad lists and nationalities',
       publisher: 'FIFA',
       publishedYear: 2025,
-      scope: '32 家洲际冠军级俱乐部的参赛名单，属于精英样本',
+      scope: '32 家参赛俱乐部完整名单中的 81 个球员国籍，属于精英样本',
       url:
-          'https://www.fifa.com/en/tournaments/mens/club-world-cup/usa-2025/articles/squads-numbers-stats',
-      appliedTo: ['精英球员国籍权重'],
+          'https://www.fifa.com/en/tournaments/mens/club-world-cup/usa-2025/articles/world-cup-winners-fcwc25-usa-lionel-messi-neuer-griezmann',
+      appliedTo: ['洲足联国籍权重', '洲内具体国家权重'],
     ),
     ProbabilitySource(
       id: 'fifa-january-transfer-snapshot-2025',

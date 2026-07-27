@@ -241,6 +241,7 @@ class PlayerProfile {
     required this.injuryRecord,
     required this.career,
     required this.stats,
+    this.academyEntryAge = 12,
     this.birthDate = '未记录',
     this.birthPlace = '未记录',
     this.developmentAssociation = '未记录',
@@ -250,6 +251,7 @@ class PlayerProfile {
     this.currentClub = '未记录',
     this.currentLeague = '未记录',
     this.joinedClubDate = '未记录',
+    this.contractStartDate = '未记录',
     this.contractUntil = '未记录',
     this.agent = '未记录',
     this.marketValueMillions = 0,
@@ -276,6 +278,7 @@ class PlayerProfile {
   final String primaryPosition;
   final String secondaryPosition;
   final String academy;
+  final int academyEntryAge;
   final int debutAge;
   final int retirementAge;
   final int initialRating;
@@ -286,6 +289,7 @@ class PlayerProfile {
   final String currentClub;
   final String currentLeague;
   final String joinedClubDate;
+  final String contractStartDate;
   final String contractUntil;
   final String agent;
   final double marketValueMillions;
@@ -335,6 +339,7 @@ class PlayerProfile {
         fallback: '未记录',
       ),
       academy: _string(career['academy'], fallback: '未记录'),
+      academyEntryAge: _int(career['academy_entry_age'], fallback: 12),
       debutAge: _int(career['debut_age']),
       retirementAge: _int(career['retirement_age']),
       initialRating: _int(ability['initial_rating']),
@@ -345,6 +350,10 @@ class PlayerProfile {
       currentClub: _string(registration['club'], fallback: '未记录'),
       currentLeague: _string(registration['league'], fallback: '未记录'),
       joinedClubDate: _string(registration['joined'], fallback: '未记录'),
+      contractStartDate: _string(
+        registration['contract_started'],
+        fallback: _string(registration['joined'], fallback: '未记录'),
+      ),
       contractUntil: _string(registration['contract_until'], fallback: '未记录'),
       agent: _string(registration['agent'], fallback: '未记录'),
       marketValueMillions: _double(registration['market_value_millions']),
@@ -391,6 +400,7 @@ class PlayerProfile {
       'club': currentClub,
       'league': currentLeague,
       'joined': joinedClubDate,
+      'contract_started': contractStartDate,
       'contract_until': contractUntil,
       'agent': agent,
       'market_value_millions': marketValueMillions,
@@ -410,6 +420,7 @@ class PlayerProfile {
       'character_model': characterAttributes!.toJson(),
     'career_information': {
       'academy': academy,
+      'academy_entry_age': academyEntryAge,
       'debut_age': debutAge,
       'retirement_age': retirementAge,
       'injury_summary': injuryRecord,
@@ -448,10 +459,10 @@ String _string(Object? value, {String fallback = ''}) {
   return text.isEmpty ? fallback : text;
 }
 
-int _int(Object? value) {
+int _int(Object? value, {int fallback = 0}) {
   if (value is int) return value;
   if (value is num) return value.round();
-  return int.tryParse('$value') ?? 0;
+  return int.tryParse('$value') ?? fallback;
 }
 
 double _double(Object? value) {
