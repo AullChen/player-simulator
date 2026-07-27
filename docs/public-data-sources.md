@@ -1,13 +1,14 @@
 # 公开数据来源与适用范围
 
-当前概率数据版本为 `2026.07-public-v1`。代码中的来源清单位于
+当前概率数据版本为 `2026.07-public-v2`。代码中的来源清单位于
 `lib/data/probability_sources.dart`，本页记录每个公开事实如何进入模型，以及它不能代表什么。
 
 ## FIFA 公开资料
 
 | 来源 | 公开事实 | 在项目中的用途 | 限制 |
 | --- | --- | --- | --- |
-| [FIFA Professional Football Report 2023](https://inside.fifa.com/legal/news/fifa-publishes-professional-football-report-2023) | 128,694 名男子职业球员、3,986 家俱乐部，覆盖 135 个国家 | 定义全球职业足球生态的数量级和统计口径 | 报告中的协会注册人数不是球员国籍，不能直接作为国籍概率 |
+| [FIFA Professional Football Report 2023](https://inside.fifa.com/legal/news/fifa-publishes-professional-football-report-2023) | 128,694 名男子职业球员、3,986 家俱乐部，覆盖 135 个国家；逐洲主要协会人数和本土球员比例 | 按协会注册人数绘制扇区，并条件抽取本土/外籍球员 | 协会注册人数不是球员国籍；报告只逐项列出各洲前五（OFC 仅两项） |
+| [FIFA Club World Cup 2025 clubs](https://www.fifa.com/en/articles/draw-procedures-confirmed) | 2025 年赛事 32 支参赛俱乐部 | 当前真实俱乐部基础目录，供随机与人生模拟使用 | 是全球顶级赛事样本，不是所有职业俱乐部数据库 |
 | [FIFA Club World Cup 2025 squads in stats](https://www.fifa.com/en/tournaments/mens/club-world-cup/usa-2025/articles/squads-numbers-stats) | 32 支参赛队的国籍计数，包括巴西 142、阿根廷 104、西班牙 54、葡萄牙 49、美国 42、墨西哥 40 等 | 校准“精英俱乐部样本”的主要国籍权重 | 这是洲际冠军级俱乐部样本，不代表全球所有职业球员 |
 | [FIFA Men’s January transfer snapshot 2025](https://inside.fifa.com/transfer-system/transfer-reports?tab=Men%27s+January+transfer+snapshot+2025) | 5,863 笔男子职业国际转会；平均年龄 24.9 岁；17.7% 涉及转会费 | 转会年龄中心值、有偿转会比例与转会类型关系 | 只覆盖国际转会，不能代表同协会内部转会 |
 | [FIFA Transfer Reports Methodology](https://inside.fifa.com/transfer-system/transfer-reports/methodology) | 统计 11 人制职业球员的国际转会，交易由俱乐部和协会通过 TMS 提交 | 限定转会概率的适用范围 | 不是完整的球员职业履历数据库 |
@@ -34,6 +35,9 @@ Transfermarkt 在本项目中只用于确定现代职业球员资料页常见的
 
 ### 直接使用的公开值
 
+- 全球 128,694 名男子职业球员；
+- 报告逐项列出的 27 个协会人数，以及由全球总数减出的 62,992 人尾部桶；
+- 各洲本土球员比例：AFC 81%、CAF 92%、Concacaf 82%、CONMEBOL 83%、OFC 94%、UEFA 66%；
 - 精英俱乐部样本中已公布的主要国籍人数；
 - 2025 年 1 月男子国际转会平均年龄 24.9 岁；
 - 2025 年 1 月男子国际转会中 17.7% 涉及费用；
