@@ -9,29 +9,34 @@ class ClubDefinition {
 }
 
 abstract final class FootballCatalog {
+  /// FIFA Club World Cup 2025 squad nationality counts are used for the
+  /// explicitly listed leading nationalities. Smaller selectable groups and
+  /// the remainder bucket preserve global variety without implying false
+  /// precision beyond the published top list.
   static const nationalities = <WeightedValue<String>>[
-    WeightedValue('巴西', 10),
-    WeightedValue('法国', 9),
-    WeightedValue('西班牙', 8),
-    WeightedValue('英格兰', 8),
-    WeightedValue('德国', 7),
-    WeightedValue('阿根廷', 7),
-    WeightedValue('葡萄牙', 5),
-    WeightedValue('意大利', 5),
-    WeightedValue('荷兰', 4),
-    WeightedValue('比利时', 3),
-    WeightedValue('克罗地亚', 2),
-    WeightedValue('乌拉圭', 2),
-    WeightedValue('日本', 3),
-    WeightedValue('韩国', 2),
-    WeightedValue('中国', 3),
-    WeightedValue('美国', 3),
-    WeightedValue('墨西哥', 3),
-    WeightedValue('哥伦比亚', 3),
-    WeightedValue('尼日利亚', 3),
-    WeightedValue('塞内加尔', 2),
-    WeightedValue('摩洛哥', 2),
-    WeightedValue('其他国家', 8),
+    WeightedValue('巴西', 142),
+    WeightedValue('阿根廷', 104),
+    WeightedValue('西班牙', 54),
+    WeightedValue('葡萄牙', 49),
+    WeightedValue('美国', 42),
+    WeightedValue('墨西哥', 40),
+    WeightedValue('法国', 37),
+    WeightedValue('德国', 36),
+    WeightedValue('意大利', 36),
+    WeightedValue('摩洛哥', 31),
+    WeightedValue('南非', 31),
+    WeightedValue('英格兰', 30),
+    WeightedValue('荷兰', 24),
+    WeightedValue('哥伦比亚', 22),
+    WeightedValue('尼日利亚', 20),
+    WeightedValue('乌拉圭', 19),
+    WeightedValue('塞内加尔', 18),
+    WeightedValue('日本', 18),
+    WeightedValue('韩国', 14),
+    WeightedValue('比利时', 14),
+    WeightedValue('克罗地亚', 12),
+    WeightedValue('中国', 6),
+    WeightedValue('其他国家', 240),
   ];
 
   static const positions = <WeightedValue<String>>[
@@ -68,6 +73,57 @@ abstract final class FootballCatalog {
     WeightedValue(6, 4),
     WeightedValue(7, 2),
     WeightedValue(8, 1),
+  ];
+
+  /// FIFA reports that permanent international moves typically account for
+  /// less than 20%, most moves involve out-of-contract players, and the
+  /// remainder are loans. These weights encode that published relationship.
+  static const transferTypes = <WeightedValue<String>>[
+    WeightedValue('自由转会', 62),
+    WeightedValue('租借', 20),
+    WeightedValue('永久转会', 18),
+  ];
+
+  static const contractLengthsYears = <WeightedValue<int>>[
+    WeightedValue(1, 18),
+    WeightedValue(2, 25),
+    WeightedValue(3, 28),
+    WeightedValue(4, 18),
+    WeightedValue(5, 9),
+    WeightedValue(6, 2),
+  ];
+
+  static const injuryTypes = <WeightedValue<String>>[
+    WeightedValue('肌肉损伤', 32),
+    WeightedValue('腿筋伤势', 20),
+    WeightedValue('踝关节伤势', 16),
+    WeightedValue('膝关节伤势', 12),
+    WeightedValue('撞击伤', 12),
+    WeightedValue('韧带重伤', 5),
+    WeightedValue('其他伤病', 3),
+  ];
+
+  static const agents = <String>[
+    'North Star Sports',
+    'Eleven Careers',
+    'Global Pitch Agency',
+    '家族代理',
+    '无经纪人',
+  ];
+
+  static const leagues = <String>[
+    '英格兰顶级联赛',
+    '西班牙顶级联赛',
+    '德国顶级联赛',
+    '意大利顶级联赛',
+    '法国顶级联赛',
+    '葡萄牙顶级联赛',
+    '荷兰顶级联赛',
+    '巴西顶级联赛',
+    '阿根廷顶级联赛',
+    '美国职业联赛',
+    '日本职业联赛',
+    '其他顶级联赛',
   ];
 
   static const injuryRecords = <WeightedValue<String>>[
