@@ -85,7 +85,9 @@ abstract final class ProbabilitySources {
 
   static const professionalPlayers2023 = 128694;
   static const professionalClubs2023 = 3986;
+  static const professionalCountries2023 = 135;
 
+  static const januaryInternationalTransfers2025 = 5863;
   static const averageInternationalTransferAge2025 = 24.9;
   static const transfersWithFeePercent2025 = 17.7;
 }

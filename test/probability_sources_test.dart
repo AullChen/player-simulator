@@ -7,6 +7,7 @@ void main() {
     expect(ProbabilitySources.dataVersion, isNotEmpty);
     expect(ProbabilitySources.professionalPlayers2023, greaterThan(100000));
     expect(ProbabilitySources.professionalClubs2023, greaterThan(3000));
+    expect(ProbabilitySources.professionalCountries2023, 135);
 
     final ids = ProbabilitySources.sources.map((source) => source.id).toSet();
     final urls = ProbabilitySources.sources.map((source) => source.url).toSet();
@@ -34,6 +35,7 @@ void main() {
       ),
       100,
     );
+    expect(ProbabilitySources.januaryInternationalTransfers2025, 5863);
     expect(ProbabilitySources.transfersWithFeePercent2025, 17.7);
     expect(ProbabilitySources.averageInternationalTransferAge2025, 24.9);
   });
