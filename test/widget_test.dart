@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:player_simulator/app.dart';
+import 'package:player_simulator/screens/dream_mode_screen.dart';
 import 'package:player_simulator/screens/life_setup_screen.dart';
 
 void main() {
@@ -34,5 +35,23 @@ void main() {
     );
 
     expect(find.text('开始 22 个生涯选择'), findsOneWidget);
+  });
+
+  testWidgets('dream mode builds a dossier from structured defaults', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: DreamModeScreen()));
+
+    await tester.scrollUntilVisible(
+      find.text('生成梦想球员档案'),
+      600,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('生成梦想球员档案'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('球员生涯档案'), findsOneWidget);
+    expect(find.text('转会记录'), findsOneWidget);
+    expect(find.text('职业比赛数据'), findsOneWidget);
   });
 }
