@@ -180,6 +180,11 @@ class _RegistrationPanel extends StatelessWidget {
                 label: '出生',
                 value: '${profile.birthDate}\n${profile.birthPlace}',
               ),
+              _FactCell(
+                width: width,
+                label: '成长协会',
+                value: profile.developmentAssociation,
+              ),
               _FactCell(width: width, label: '公民身份', value: citizenships),
               _FactCell(
                 width: width,

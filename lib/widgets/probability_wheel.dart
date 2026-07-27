@@ -2,33 +2,37 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../domain/weighted_value.dart';
 import '../theme/app_theme.dart';
 
 class ProbabilityWheel extends StatelessWidget {
   const ProbabilityWheel({
     super.key,
     required this.animation,
-    required this.labels,
+    required this.segments,
+    required this.selectedValue,
   });
 
   final Animation<double> animation;
-  final List<String> labels;
+  final List<WeightedValue<String>> segments;
+  final String selectedValue;
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: animation,
       builder: (context, child) {
+        final curved = Curves.easeOutCubic.transform(animation.value);
         return Stack(
           alignment: Alignment.topCenter,
           children: [
             Padding(
               padding: const EdgeInsets.only(top: 12),
               child: Transform.rotate(
-                angle: animation.value * math.pi * 8,
+                angle: _targetRotation() * curved,
                 child: CustomPaint(
                   size: const Size.square(270),
-                  painter: _WheelPainter(labels),
+                  painter: _WheelPainter(segments, Directionality.of(context)),
                 ),
               ),
             ),
@@ -54,18 +58,35 @@ class ProbabilityWheel extends StatelessWidget {
       },
     );
   }
+
+  double _targetRotation() {
+    final total = segments.fold<int>(0, (sum, segment) => sum + segment.weight);
+    var before = 0;
+    var selectedWeight = segments.first.weight;
+    for (final segment in segments) {
+      if (segment.value == selectedValue) {
+        selectedWeight = segment.weight;
+        break;
+      }
+      before += segment.weight;
+    }
+    final selectedCenter =
+        -math.pi / 2 + math.pi * 2 * (before + selectedWeight / 2) / total;
+    return math.pi * 12 + (-math.pi / 2 - selectedCenter);
+  }
 }
 
 class _WheelPainter extends CustomPainter {
-  const _WheelPainter(this.labels);
+  const _WheelPainter(this.segments, this.textDirection);
 
-  final List<String> labels;
+  final List<WeightedValue<String>> segments;
+  final TextDirection textDirection;
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
     final radius = size.shortestSide / 2;
-    final sweep = math.pi * 2 / labels.length;
+    final total = segments.fold<int>(0, (sum, segment) => sum + segment.weight);
     const colors = [
       AppColors.pitchDark,
       AppColors.navySoft,
@@ -76,43 +97,51 @@ class _WheelPainter extends CustomPainter {
       Color(0xFF355D74),
       Color(0xFFB1783E),
     ];
+    var cursor = -math.pi / 2;
 
-    for (var index = 0; index < labels.length; index++) {
-      final start = -math.pi / 2 + index * sweep;
+    for (var index = 0; index < segments.length; index++) {
+      final segment = segments[index];
+      final sweep = math.pi * 2 * segment.weight / total;
       final paint = Paint()
         ..color = colors[index % colors.length]
         ..style = PaintingStyle.fill;
       canvas.drawArc(
         Rect.fromCircle(center: center, radius: radius),
-        start,
+        cursor,
         sweep,
         true,
         paint,
       );
 
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: labels[index],
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
+      if (sweep >= 0.18) {
+        final label = segment.value.length > 10
+            ? '${segment.value.substring(0, 9)}…'
+            : segment.value;
+        final textPainter = TextPainter(
+          text: TextSpan(
+            text: label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-        ),
-        textAlign: TextAlign.center,
-        textDirection: TextDirection.ltr,
-      )..layout(maxWidth: radius * 0.58);
-      final angle = start + sweep / 2;
-      final position =
-          center + Offset(math.cos(angle), math.sin(angle)) * radius * 0.67;
-      canvas.save();
-      canvas.translate(position.dx, position.dy);
-      canvas.rotate(angle + math.pi / 2);
-      textPainter.paint(
-        canvas,
-        Offset(-textPainter.width / 2, -textPainter.height / 2),
-      );
-      canvas.restore();
+          textAlign: TextAlign.center,
+          textDirection: textDirection,
+        )..layout(maxWidth: radius * 0.62);
+        final angle = cursor + sweep / 2;
+        final position =
+            center + Offset(math.cos(angle), math.sin(angle)) * radius * 0.68;
+        canvas.save();
+        canvas.translate(position.dx, position.dy);
+        canvas.rotate(angle + math.pi / 2);
+        textPainter.paint(
+          canvas,
+          Offset(-textPainter.width / 2, -textPainter.height / 2),
+        );
+        canvas.restore();
+      }
+      cursor += sweep;
     }
 
     canvas.drawCircle(
@@ -127,6 +156,16 @@ class _WheelPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _WheelPainter oldDelegate) {
-    return oldDelegate.labels != labels;
+    if (oldDelegate.textDirection != textDirection ||
+        oldDelegate.segments.length != segments.length) {
+      return true;
+    }
+    for (var index = 0; index < segments.length; index++) {
+      if (oldDelegate.segments[index].value != segments[index].value ||
+          oldDelegate.segments[index].weight != segments[index].weight) {
+        return true;
+      }
+    }
+    return false;
   }
 }

@@ -241,6 +241,7 @@ class PlayerProfile {
     required this.stats,
     this.birthDate = '未记录',
     this.birthPlace = '未记录',
+    this.developmentAssociation = '未记录',
     this.citizenships = const [],
     this.weightKg = 0,
     this.shirtNumber = 0,
@@ -262,6 +263,7 @@ class PlayerProfile {
   final String name;
   final String birthDate;
   final String birthPlace;
+  final String developmentAssociation;
   final String nationality;
   final List<String> citizenships;
   final String preferredFoot;
@@ -313,6 +315,10 @@ class PlayerProfile {
       name: _string(personal['name'], fallback: '未命名球员'),
       birthDate: _string(personal['date_of_birth'], fallback: '未记录'),
       birthPlace: _string(personal['place_of_birth'], fallback: '未记录'),
+      developmentAssociation: _string(
+        personal['development_association'],
+        fallback: _string(personal['nationality'], fallback: '未记录'),
+      ),
       nationality: _string(personal['nationality'], fallback: '未记录'),
       citizenships: _strings(personal['citizenships']),
       preferredFoot: _string(personal['preferred_foot'], fallback: '未记录'),
@@ -363,6 +369,7 @@ class PlayerProfile {
       'name': name,
       'date_of_birth': birthDate,
       'place_of_birth': birthPlace,
+      'development_association': developmentAssociation,
       'nationality': nationality,
       'citizenships': citizenships,
       'preferred_foot': preferredFoot,

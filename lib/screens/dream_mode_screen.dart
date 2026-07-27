@@ -147,6 +147,7 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
       name: _text('name'),
       birthDate: _text('birthDate'),
       birthPlace: _text('birthPlace'),
+      developmentAssociation: _text('nationality'),
       nationality: _text('nationality'),
       citizenships: _csv('citizenships'),
       preferredFoot: _preferredFoot,

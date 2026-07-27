@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../domain/player_profile.dart';
+import '../domain/random_draw_step.dart';
+import '../l10n/app_localizations.dart';
 import '../services/random_career_generator.dart';
+import '../services/random_draw_plan.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/probability_wheel.dart';
@@ -18,10 +21,9 @@ class _RandomModeScreenState extends State<RandomModeScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late PlayerProfile _profile;
+  late List<RandomDrawStep> _steps;
   var _step = 0;
   var _spinning = false;
-
-  late final List<_DrawStep> _steps;
 
   @override
   void initState() {
@@ -35,39 +37,7 @@ class _RandomModeScreenState extends State<RandomModeScreen>
 
   void _resetProfile() {
     _profile = RandomCareerGenerator().generate();
-    _steps = [
-      _DrawStep(
-        title: '出生地与足球文化',
-        category: '国籍',
-        value: _profile.nationality,
-        labels: const ['巴西', '法国', '西班牙', '英格兰', '德国', '阿根廷', '亚洲', '其他'],
-      ),
-      _DrawStep(
-        title: '身体习惯',
-        category: '惯用脚',
-        value: _profile.preferredFoot,
-        labels: const ['右脚', '右脚', '左脚', '右脚', '双足', '左脚'],
-      ),
-      _DrawStep(
-        title: '球场上的职责',
-        category: '位置',
-        value: '${_profile.primaryPosition} · ${_profile.heightCm} cm',
-        labels: const ['门将', '中后卫', '边后卫', '后腰', '中前卫', '前腰', '边锋', '中锋'],
-      ),
-      _DrawStep(
-        title: '第一堂职业课',
-        category: '青训',
-        value: _profile.academy,
-        labels: const ['豪门梯队', '精英学院', '地区青训', '校园足球', '海外学院', '社区球队'],
-      ),
-      _DrawStep(
-        title: '漫长职业生涯',
-        category: '生涯',
-        value:
-            '巅峰 ${_profile.peakRating} · ${_profile.stats.transferCount} 次转会',
-        labels: const ['稳步成长', '天才爆发', '伤病考验', '豪门征召', '国家队', '冠军时刻'],
-      ),
-    ];
+    _steps = RandomDrawPlan.build(_profile);
   }
 
   @override
@@ -88,6 +58,20 @@ class _RandomModeScreenState extends State<RandomModeScreen>
     setState(() {
       _step += 1;
       _spinning = false;
+      _controller.reset();
+    });
+  }
+
+  void _finishCurrentTrack() {
+    if (_spinning || _step >= _steps.length) return;
+    final track = _steps[_step].track;
+    var next = _step;
+    while (next < _steps.length && _steps[next].track == track) {
+      next += 1;
+    }
+    setState(() {
+      _step = next;
+      _controller.reset();
     });
   }
 
@@ -102,15 +86,17 @@ class _RandomModeScreenState extends State<RandomModeScreen>
 
   @override
   Widget build(BuildContext context) {
-    final isComplete = _step == _steps.length;
-    final current = _steps[isComplete ? _steps.length - 1 : _step];
+    final complete = _step == _steps.length;
+    final current = complete ? null : _steps[_step];
+    final recentStart = (_step - 6).clamp(0, _step);
+    final recent = _steps.sublist(recentStart, _step).reversed;
 
     return AppScaffold(
-      title: '全随机 · 真实概率',
+      title: context.tr('全随机 · 比例转盘', 'Full random · Proportionate wheels'),
       actions: [
         IconButton(
           onPressed: _spinning ? null : _restart,
-          tooltip: '重新开始',
+          tooltip: context.tr('重新开始', 'Restart'),
           icon: const Icon(Icons.refresh),
         ),
       ],
@@ -118,10 +104,11 @@ class _RandomModeScreenState extends State<RandomModeScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            _TrackRail(steps: _steps, completed: _step),
+            const SizedBox(height: 24),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const SectionLabel('Probability draw'),
+                const Expanded(child: SectionLabel('Career draw timeline')),
                 Text(
                   '$_step / ${_steps.length}',
                   style: const TextStyle(
@@ -133,60 +120,136 @@ class _RandomModeScreenState extends State<RandomModeScreen>
             ),
             const SizedBox(height: 10),
             Text(
-              isComplete ? '球员档案已经完成' : current.title,
+              complete
+                  ? context.tr('所有履历字段已经完成', 'Every dossier field is complete')
+                  : context.isEnglish
+                  ? current!.titleEn
+                  : current!.titleZh,
               style: Theme.of(context).textTheme.displaySmall,
             ),
             const SizedBox(height: 8),
             Text(
-              isComplete
-                  ? '所有抽取已写入履历，现在可以查看数据并生成故事。'
-                  : '轮盘扇区反映加权类别，最终结果由领域层概率表决定。',
+              complete
+                  ? context.tr(
+                      '个人信息、俱乐部和国家队三条线已经汇合，可以打开完整档案。',
+                      'Personal, club, and national-team timelines have converged into one complete dossier.',
+                    )
+                  : context.tr(
+                      '扇区面积严格等于该项权重；当前结果会落在指针所指的扇区。',
+                      'Each sector’s area exactly matches its weight; the selected result lands under the pointer.',
+                    ),
               style: Theme.of(context).textTheme.bodyMedium,
             ),
-            const SizedBox(height: 28),
-            Card(
-              color: AppColors.navy,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 26, 18, 24),
-                child: Column(
-                  children: [
-                    ProbabilityWheel(
-                      animation: _controller,
-                      labels: current.labels,
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      isComplete ? '抽取完成' : '本轮：${current.category}',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontWeight: FontWeight.w700,
+            const SizedBox(height: 24),
+            if (!complete) ...[
+              Card(
+                color: AppColors.navy,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 22, 18, 18),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          _TrackBadge(track: current!.track),
+                          const Spacer(),
+                          if (current.age != null)
+                            Text(
+                              context.tr(
+                                '${current.age} 岁',
+                                'Age ${current.age}',
+                              ),
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: isComplete || _spinning ? null : _spin,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.gold,
-                          foregroundColor: AppColors.navy,
+                      const SizedBox(height: 16),
+                      ProbabilityWheel(
+                        animation: _controller,
+                        segments: current.segments,
+                        selectedValue: current.selectedSegment,
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        context.isEnglish
+                            ? current.categoryEn
+                            : current.categoryZh,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontWeight: FontWeight.w700,
                         ),
-                        child: Text(_spinning ? '轮盘转动中…' : '转动轮盘'),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 5),
+                      Text(
+                        _spinning
+                            ? context.tr('正在决定…', 'Deciding…')
+                            : context.tr('等待转盘', 'Waiting for the wheel'),
+                        style: const TextStyle(
+                          color: AppColors.gold,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: _spinning ? null : _spin,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.gold,
+                            foregroundColor: AppColors.navy,
+                          ),
+                          child: Text(
+                            _spinning
+                                ? context.tr('轮盘转动中…', 'Wheel spinning…')
+                                : context.tr('转动当前轮盘', 'Spin current wheel'),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextButton(
+                        onPressed: _spinning ? null : _finishCurrentTrack,
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white70,
+                        ),
+                        child: Text(
+                          context.tr(
+                            '快速完成本条主线',
+                            'Quick-complete this timeline',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 22),
-            if (_step > 0) ...[
-              const Text('已抽取', style: TextStyle(fontWeight: FontWeight.w900)),
-              const SizedBox(height: 10),
-              for (var index = 0; index < _step; index++)
-                _RevealRow(step: _steps[index]),
+              const SizedBox(height: 12),
+              _ProbabilityNote(step: current),
             ],
-            if (isComplete) ...[
+            if (recent.isNotEmpty) ...[
+              const SizedBox(height: 22),
+              Text(
+                context.tr('最近抽取', 'Recent draws'),
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
               const SizedBox(height: 10),
+              for (final step in recent) _RevealRow(step: step),
+            ],
+            if (_step > 6) ...[
+              const SizedBox(height: 2),
+              Text(
+                context.tr(
+                  '另有 ${_step - 6} 项已写入最终档案。',
+                  '${_step - 6} earlier fields are already in the final dossier.',
+                ),
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+            if (complete) ...[
+              const SizedBox(height: 22),
               FilledButton.icon(
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
@@ -194,9 +257,20 @@ class _RandomModeScreenState extends State<RandomModeScreen>
                   ),
                 ),
                 icon: const Icon(Icons.description_outlined),
-                label: const Text('打开完整球员档案'),
+                label: Text(
+                  context.tr('打开完整球员档案', 'Open complete player dossier'),
+                ),
               ),
             ],
+            const SizedBox(height: 18),
+            Text(
+              context.tr(
+                '想手动指定任一字段？请使用“梦想球员”模式。',
+                'Want to enter any field manually? Use Dream Player mode.',
+              ),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
           ],
         ),
       ),
@@ -204,30 +278,196 @@ class _RandomModeScreenState extends State<RandomModeScreen>
   }
 }
 
-class _DrawStep {
-  const _DrawStep({
-    required this.title,
-    required this.category,
-    required this.value,
-    required this.labels,
+class _TrackRail extends StatelessWidget {
+  const _TrackRail({required this.steps, required this.completed});
+
+  final List<RandomDrawStep> steps;
+  final int completed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (final track in RandomDrawTrack.values) ...[
+          Expanded(
+            child: _TrackProgress(
+              track: track,
+              total: steps.where((step) => step.track == track).length,
+              completed: steps
+                  .take(completed)
+                  .where((step) => step.track == track)
+                  .length,
+            ),
+          ),
+          if (track != RandomDrawTrack.values.last)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 7),
+              child: Icon(
+                Icons.chevron_right,
+                size: 18,
+                color: AppColors.muted,
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+class _TrackProgress extends StatelessWidget {
+  const _TrackProgress({
+    required this.track,
+    required this.total,
+    required this.completed,
   });
 
-  final String title;
-  final String category;
-  final String value;
-  final List<String> labels;
+  final RandomDrawTrack track;
+  final int total;
+  final int completed;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = completed < total;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Icon(_trackIcon(track), size: 15, color: _trackColor(track)),
+            const SizedBox(width: 5),
+            Expanded(
+              child: Text(
+                _trackName(context, track),
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            Text(
+              '$completed/$total',
+              style: const TextStyle(color: AppColors.muted, fontSize: 10),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        LinearProgressIndicator(
+          value: total == 0 ? 0 : completed / total,
+          minHeight: active ? 5 : 4,
+          color: _trackColor(track),
+          backgroundColor: AppColors.line,
+          borderRadius: BorderRadius.circular(99),
+        ),
+      ],
+    );
+  }
+}
+
+class _TrackBadge extends StatelessWidget {
+  const _TrackBadge({required this.track});
+
+  final RandomDrawTrack track;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: _trackColor(track).withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(_trackIcon(track), color: _trackColor(track), size: 15),
+          const SizedBox(width: 6),
+          Text(
+            _trackName(context, track),
+            style: TextStyle(
+              color: _trackColor(track),
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProbabilityNote extends StatelessWidget {
+  const _ProbabilityNote({required this.step});
+
+  final RandomDrawStep step;
+
+  @override
+  Widget build(BuildContext context) {
+    final probability = step.selectedProbability * 100;
+    final probabilityText = probability < 0.01
+        ? '<0.01%'
+        : '${probability.toStringAsFixed(probability < 1 ? 2 : 1)}%';
+    final kind = switch (step.probabilityKind) {
+      DrawProbabilityKind.official => context.tr('FIFA 原始值', 'FIFA source'),
+      DrawProbabilityKind.calibrated => context.tr(
+        '公开数据校准',
+        'Public-data calibrated',
+      ),
+      DrawProbabilityKind.modeled => context.tr('模型权重', 'Model weight'),
+    };
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.data_usage_outlined,
+            color: AppColors.pitchDark,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$kind · ${context.tr('命中扇区', 'selected sector')} $probabilityText',
+                  style: const TextStyle(
+                    color: AppColors.ink,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  context.isEnglish ? step.sourceNoteEn : step.sourceNoteZh,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _RevealRow extends StatelessWidget {
   const _RevealRow({required this.step});
 
-  final _DrawStep step;
+  final RandomDrawStep step;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
@@ -238,14 +478,14 @@ class _RevealRow extends StatelessWidget {
           Container(
             width: 34,
             height: 34,
-            decoration: const BoxDecoration(
-              color: Color(0xFFE6F5EF),
+            decoration: BoxDecoration(
+              color: _trackColor(step.track).withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.check,
-              size: 18,
-              color: AppColors.pitchDark,
+            child: Icon(
+              _trackIcon(step.track),
+              size: 17,
+              color: _trackColor(step.track),
             ),
           ),
           const SizedBox(width: 12),
@@ -254,7 +494,7 @@ class _RevealRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  step.category,
+                  context.isEnglish ? step.categoryEn : step.categoryZh,
                   style: const TextStyle(
                     color: AppColors.muted,
                     fontSize: 11,
@@ -262,7 +502,7 @@ class _RevealRow extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  step.value,
+                  context.isEnglish ? step.resultEn : step.resultZh,
                   style: const TextStyle(
                     color: AppColors.ink,
                     fontWeight: FontWeight.w800,
@@ -271,8 +511,36 @@ class _RevealRow extends StatelessWidget {
               ],
             ),
           ),
+          Text(
+            '${(step.selectedProbability * 100).toStringAsFixed(1)}%',
+            style: const TextStyle(
+              color: AppColors.muted,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
   }
 }
+
+String _trackName(BuildContext context, RandomDrawTrack track) {
+  return switch (track) {
+    RandomDrawTrack.personal => context.tr('个人', 'Personal'),
+    RandomDrawTrack.club => context.tr('俱乐部', 'Club'),
+    RandomDrawTrack.nationalTeam => context.tr('国家队', 'National'),
+  };
+}
+
+IconData _trackIcon(RandomDrawTrack track) => switch (track) {
+  RandomDrawTrack.personal => Icons.badge_outlined,
+  RandomDrawTrack.club => Icons.stadium_outlined,
+  RandomDrawTrack.nationalTeam => Icons.flag_outlined,
+};
+
+Color _trackColor(RandomDrawTrack track) => switch (track) {
+  RandomDrawTrack.personal => AppColors.gold,
+  RandomDrawTrack.club => AppColors.pitch,
+  RandomDrawTrack.nationalTeam => const Color(0xFF6FA8DC),
+};

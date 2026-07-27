@@ -11,7 +11,18 @@ class RandomCareerGenerator {
   final Random _random;
 
   PlayerProfile generate() {
-    final nationality = FootballCatalog.nationalities.pick(_random);
+    final associationBucket = FootballCatalog.professionalAssociationPopulations
+        .pick(_random);
+    final developmentAssociation = associationBucket == '其他 FIFA 协会'
+        ? _pick(FootballCatalog.otherAssociations)
+        : associationBucket;
+    final confederation =
+        FootballCatalog.associationConfederations[developmentAssociation];
+    final homegrownPercent =
+        FootballCatalog.homegrownPercentByConfederation[confederation] ?? 77;
+    final nationality = _random.nextInt(100) < homegrownPercent
+        ? developmentAssociation
+        : _foreignNationality(developmentAssociation);
     final position = FootballCatalog.positions.pick(_random);
     final preferredFoot = FootballCatalog.preferredFeet.pick(_random);
     final academyTier = FootballCatalog.academyTiers.pick(_random);
@@ -66,12 +77,18 @@ class RandomCareerGenerator {
     );
     final lastChapter = chapters.last;
     final nationalDebutAge = 19 + _random.nextInt(7);
+    final contractLength = FootballCatalog.contractLengthsYears.pick(_random);
+    final lastContractStartAge = max(
+      lastChapter.age,
+      retirementAge - contractLength,
+    );
 
     return PlayerProfile(
       mode: CareerMode.random,
       name: '无名新星 ${100 + _random.nextInt(900)}',
       birthDate: _randomDate(birthYear),
       birthPlace: _birthPlace(nationality),
+      developmentAssociation: developmentAssociation,
       nationality: nationality,
       citizenships: _citizenships(nationality),
       preferredFoot: preferredFoot,
@@ -90,7 +107,7 @@ class RandomCareerGenerator {
       injuryRecord: _injurySummary(injuryHistory),
       currentClub: lastChapter.club,
       currentLeague: _leagueForClub(lastChapter.club, nationality),
-      joinedClubDate: '01/07/${birthYear + lastChapter.age}',
+      joinedClubDate: '01/07/${birthYear + lastContractStartAge}',
       contractUntil: '30/06/${birthYear + retirementAge}',
       agent: _pick(FootballCatalog.agents),
       marketValueMillions: marketValueHistory.fold<double>(
@@ -515,6 +532,17 @@ class RandomCareerGenerator {
   String _birthPlace(String nationality) {
     final values = FootballCatalog.birthPlaces[nationality];
     return values == null ? '$nationality某城市' : _pick(values);
+  }
+
+  String _foreignNationality(String developmentAssociation) {
+    for (var attempts = 0; attempts < 20; attempts++) {
+      final candidate = FootballCatalog.nationalities.pick(_random);
+      final nationality = candidate == '其他国家'
+          ? _pick(FootballCatalog.otherAssociations)
+          : candidate;
+      if (nationality != developmentAssociation) return nationality;
+    }
+    return '法国';
   }
 
   List<String> _citizenships(String nationality) {

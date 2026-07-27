@@ -230,6 +230,7 @@ class LifeSimulator {
       name: name,
       birthDate: _randomDate(birthYear),
       birthPlace: _birthPlace(),
+      developmentAssociation: nationality,
       nationality: nationality,
       citizenships: [nationality],
       preferredFoot: _random.nextInt(100) < 24 ? '左脚' : '右脚',
