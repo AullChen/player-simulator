@@ -11,6 +11,8 @@ class StoryApiClient {
   StoryApiClient({
     required this.endpoint,
     required this.token,
+    this.model = '',
+    this.language = 'zh-CN',
     StoryTransport? transport,
   }) : transport = transport ?? transport_factory.createStoryTransport();
 
@@ -18,11 +20,14 @@ class StoryApiClient {
     return StoryApiClient(
       endpoint: const String.fromEnvironment('STORY_API_URL'),
       token: const String.fromEnvironment('STORY_API_TOKEN'),
+      model: const String.fromEnvironment('STORY_API_MODEL'),
     );
   }
 
   final String endpoint;
   final String token;
+  final String model;
+  final String language;
   final StoryTransport transport;
 
   bool get usesDemo => endpoint.trim().isEmpty;
@@ -46,7 +51,8 @@ class StoryApiClient {
       },
       body: jsonEncode({
         'task': 'generate_football_player_story',
-        'language': 'zh-CN',
+        'language': language,
+        if (model.isNotEmpty) 'model': model,
         'player': profile.toJson(),
       }),
     );

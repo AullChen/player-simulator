@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../domain/player_profile.dart';
+import '../l10n/app_localizations.dart';
 import '../services/story_api_client.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/app_scope.dart';
 
 class ResultScreen extends StatefulWidget {
   const ResultScreen({super.key, required this.profile, this.storyClient});
@@ -16,15 +18,27 @@ class ResultScreen extends StatefulWidget {
 }
 
 class _ResultScreenState extends State<ResultScreen> {
-  late final StoryApiClient _storyClient;
+  late StoryApiClient _storyClient;
+  var _initialized = false;
+  var _autoSaveStarted = false;
   String? _story;
   Object? _storyError;
 
   @override
-  void initState() {
-    super.initState();
-    _storyClient = widget.storyClient ?? StoryApiClient.fromEnvironment();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialized) return;
+    final controller = AppScope.maybeOf(context);
+    _storyClient =
+        widget.storyClient ??
+        controller?.createStoryClient() ??
+        StoryApiClient.fromEnvironment();
+    _initialized = true;
     _loadStory();
+    if (controller?.settings.autoSavePlayers == true && !_autoSaveStarted) {
+      _autoSaveStarted = true;
+      controller!.savePlayer(widget.profile);
+    }
   }
 
   Future<void> _loadStory() async {
@@ -42,11 +56,27 @@ class _ResultScreenState extends State<ResultScreen> {
     }
   }
 
+  Future<void> _savePlayer() async {
+    final controller = AppScope.maybeOf(context);
+    if (controller == null) return;
+    final added = await controller.savePlayer(widget.profile);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          added
+              ? context.tr('球员已保存到本地档案', 'Player saved locally')
+              : context.tr('这份球员档案已经保存过', 'This dossier is already saved'),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final profile = widget.profile;
     return AppScaffold(
-      title: '球员生涯档案',
+      title: context.tr('球员生涯档案', 'Player career dossier'),
       child: ContentWidth(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -63,17 +93,20 @@ class _ResultScreenState extends State<ResultScreen> {
               children: [
                 MetricTile(
                   value: '${profile.peakRating}',
-                  label: '巅峰能力',
+                  label: context.tr('巅峰能力', 'Peak rating'),
                   emphasized: true,
                 ),
                 MetricTile(
                   value: '${profile.stats.appearances}',
-                  label: '俱乐部出场',
+                  label: context.tr('俱乐部出场', 'Club appearances'),
                 ),
-                MetricTile(value: '${profile.stats.goals}', label: '生涯进球'),
+                MetricTile(
+                  value: '${profile.stats.goals}',
+                  label: context.tr('生涯进球', 'Career goals'),
+                ),
                 MetricTile(
                   value: '${profile.stats.championships.length}',
-                  label: '冠军数量',
+                  label: context.tr('冠军数量', 'Trophies'),
                 ),
               ],
             ),
@@ -97,11 +130,17 @@ class _ResultScreenState extends State<ResultScreen> {
               onRetry: _loadStory,
             ),
             const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: AppScope.maybeOf(context) == null ? null : _savePlayer,
+              icon: const Icon(Icons.save_outlined),
+              label: Text(context.tr('保存球员档案', 'Save player dossier')),
+            ),
+            const SizedBox(height: 10),
             OutlinedButton.icon(
               onPressed: () =>
                   Navigator.of(context).popUntil((route) => route.isFirst),
               icon: const Icon(Icons.home_outlined),
-              label: const Text('返回首页'),
+              label: Text(context.tr('返回首页', 'Back to home')),
             ),
           ],
         ),

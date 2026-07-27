@@ -13,6 +13,13 @@ class CareerChapter {
   final String event;
   final int rating;
 
+  factory CareerChapter.fromJson(Map<String, dynamic> json) => CareerChapter(
+    age: _int(json['age']),
+    club: _string(json['club']),
+    event: _string(json['event']),
+    rating: _int(json['rating']),
+  );
+
   Map<String, Object> toJson() => {
     'age': age,
     'club': club,
@@ -38,6 +45,15 @@ class TransferRecord {
   final String type;
   final double feeMillions;
 
+  factory TransferRecord.fromJson(Map<String, dynamic> json) => TransferRecord(
+    season: _string(json['season']),
+    age: _int(json['age']),
+    fromClub: _string(json['from_club']),
+    toClub: _string(json['to_club']),
+    type: _string(json['type']),
+    feeMillions: _double(json['fee_millions']),
+  );
+
   Map<String, Object> toJson() => {
     'season': season,
     'age': age,
@@ -61,6 +77,13 @@ class InjurySpell {
   final int daysAbsent;
   final int matchesMissed;
 
+  factory InjurySpell.fromJson(Map<String, dynamic> json) => InjurySpell(
+    season: _string(json['season']),
+    type: _string(json['type']),
+    daysAbsent: _int(json['days_absent']),
+    matchesMissed: _int(json['matches_missed']),
+  );
+
   Map<String, Object> toJson() => {
     'season': season,
     'type': type,
@@ -74,6 +97,12 @@ class MarketValuePoint {
 
   final int age;
   final double valueMillions;
+
+  factory MarketValuePoint.fromJson(Map<String, dynamic> json) =>
+      MarketValuePoint(
+        age: _int(json['age']),
+        valueMillions: _double(json['value_millions']),
+      );
 
   Map<String, Object> toJson() => {'age': age, 'value_millions': valueMillions};
 }
@@ -92,6 +121,15 @@ class CompetitionStats {
   final int goals;
   final int assists;
   final int minutesPlayed;
+
+  factory CompetitionStats.fromJson(Map<String, dynamic> json) =>
+      CompetitionStats(
+        competition: _string(json['competition']),
+        appearances: _int(json['appearances']),
+        goals: _int(json['goals']),
+        assists: _int(json['assists']),
+        minutesPlayed: _int(json['minutes_played']),
+      );
 
   Map<String, Object> toJson() => {
     'competition': competition,
@@ -140,6 +178,26 @@ class CareerStats {
   final double totalTransferFeeMillions;
   final List<String> championships;
   final List<String> personalHonors;
+
+  factory CareerStats.fromJson(Map<String, dynamic> json) => CareerStats(
+    appearances: _int(json['appearances']),
+    starts: _int(json['starts']),
+    substituteAppearances: _int(json['substitute_appearances']),
+    minutesPlayed: _int(json['minutes_played']),
+    goals: _int(json['goals']),
+    assists: _int(json['assists']),
+    yellowCards: _int(json['yellow_cards']),
+    secondYellowCards: _int(json['second_yellow_cards']),
+    redCards: _int(json['red_cards']),
+    cleanSheets: _int(json['clean_sheets']),
+    penaltiesScored: _int(json['penalties_scored']),
+    nationalCaps: _int(json['national_caps']),
+    nationalGoals: _int(json['national_goals']),
+    transferCount: _int(json['transfer_count']),
+    totalTransferFeeMillions: _double(json['total_transfer_fee_millions']),
+    championships: _strings(json['championships']),
+    personalHonors: _strings(json['personal_honors']),
+  );
 
   Map<String, Object> toJson() => {
     'appearances': appearances,
@@ -235,6 +293,70 @@ class PlayerProfile {
   final List<CompetitionStats> competitionStats;
   final CareerStats stats;
 
+  factory PlayerProfile.fromJson(Map<String, dynamic> json) {
+    final personal = _map(json['personal_information']);
+    final registration = _map(json['registration_and_contract']);
+    final national = _map(json['national_team']);
+    final ability = _map(json['ability']);
+    final career = _map(json['career_information']);
+    final modeName = _string(json['mode'], fallback: 'random');
+    var mode = CareerMode.random;
+    for (final value in CareerMode.values) {
+      if (value.name == modeName) {
+        mode = value;
+        break;
+      }
+    }
+
+    return PlayerProfile(
+      mode: mode,
+      name: _string(personal['name'], fallback: '未命名球员'),
+      birthDate: _string(personal['date_of_birth'], fallback: '未记录'),
+      birthPlace: _string(personal['place_of_birth'], fallback: '未记录'),
+      nationality: _string(personal['nationality'], fallback: '未记录'),
+      citizenships: _strings(personal['citizenships']),
+      preferredFoot: _string(personal['preferred_foot'], fallback: '未记录'),
+      heightCm: _int(personal['height_cm']),
+      weightKg: _int(personal['weight_kg']),
+      shirtNumber: _int(personal['shirt_number']),
+      primaryPosition: _string(personal['primary_position'], fallback: '未记录'),
+      secondaryPosition: _string(
+        personal['secondary_position'],
+        fallback: '未记录',
+      ),
+      academy: _string(career['academy'], fallback: '未记录'),
+      debutAge: _int(career['debut_age']),
+      retirementAge: _int(career['retirement_age']),
+      initialRating: _int(ability['initial_rating']),
+      peakRating: _int(ability['peak_rating']),
+      finalRating: _int(ability['final_rating']),
+      playStyle: _string(personal['play_style'], fallback: '未记录'),
+      injuryRecord: _string(career['injury_summary'], fallback: '未记录'),
+      currentClub: _string(registration['club'], fallback: '未记录'),
+      currentLeague: _string(registration['league'], fallback: '未记录'),
+      joinedClubDate: _string(registration['joined'], fallback: '未记录'),
+      contractUntil: _string(registration['contract_until'], fallback: '未记录'),
+      agent: _string(registration['agent'], fallback: '未记录'),
+      marketValueMillions: _double(registration['market_value_millions']),
+      nationalTeam: _string(national['team'], fallback: '未入选'),
+      nationalTeamDebut: _string(national['debut'], fallback: '未记录'),
+      career: _maps(career['chapters']).map(CareerChapter.fromJson).toList(),
+      transferHistory: _maps(
+        career['transfer_history'],
+      ).map(TransferRecord.fromJson).toList(),
+      injuryHistory: _maps(
+        career['injury_history'],
+      ).map(InjurySpell.fromJson).toList(),
+      marketValueHistory: _maps(
+        career['market_value_history'],
+      ).map(MarketValuePoint.fromJson).toList(),
+      competitionStats: _maps(
+        career['competition_statistics'],
+      ).map(CompetitionStats.fromJson).toList(),
+      stats: CareerStats.fromJson(_map(career['statistics'])),
+    );
+  }
+
   Map<String, Object> toJson() => {
     'mode': mode.name,
     'personal_information': {
@@ -289,4 +411,40 @@ class PlayerProfile {
       'statistics': stats.toJson(),
     },
   };
+}
+
+Map<String, dynamic> _map(Object? value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) {
+    return value.map((key, item) => MapEntry('$key', item));
+  }
+  return const {};
+}
+
+List<Map<String, dynamic>> _maps(Object? value) {
+  if (value is! List) return const [];
+  return value.map(_map).toList();
+}
+
+String _string(Object? value, {String fallback = ''}) {
+  if (value == null) return fallback;
+  final text = '$value';
+  return text.isEmpty ? fallback : text;
+}
+
+int _int(Object? value) {
+  if (value is int) return value;
+  if (value is num) return value.round();
+  return int.tryParse('$value') ?? 0;
+}
+
+double _double(Object? value) {
+  if (value is double) return value;
+  if (value is num) return value.toDouble();
+  return double.tryParse('$value') ?? 0;
+}
+
+List<String> _strings(Object? value) {
+  if (value is! List) return const [];
+  return value.map((item) => '$item').toList();
 }
