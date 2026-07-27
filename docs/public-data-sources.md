@@ -1,6 +1,6 @@
 # 公开数据来源与适用范围
 
-当前概率数据版本为 `2026.07-public-v2`。代码中的来源清单位于
+当前概率数据版本为 `2026.07-public-v3`。代码中的来源清单位于
 `lib/data/probability_sources.dart`，本页记录每个公开事实如何进入模型，以及它不能代表什么。
 
 ## FIFA 公开资料
@@ -9,7 +9,7 @@
 | --- | --- | --- | --- |
 | [FIFA Professional Football Report 2023](https://inside.fifa.com/legal/news/fifa-publishes-professional-football-report-2023) | 128,694 名男子职业球员、3,986 家俱乐部，覆盖 135 个国家；逐洲主要协会人数和本土球员比例 | 按协会注册人数绘制扇区，并条件抽取本土/外籍球员 | 协会注册人数不是球员国籍；报告只逐项列出各洲前五（OFC 仅两项） |
 | [FIFA Club World Cup 2025 clubs](https://www.fifa.com/en/articles/draw-procedures-confirmed) | 2025 年赛事 32 支参赛俱乐部 | 当前真实俱乐部基础目录，供随机与人生模拟使用 | 是全球顶级赛事样本，不是所有职业俱乐部数据库 |
-| [FIFA Club World Cup 2025 squads in stats](https://www.fifa.com/en/tournaments/mens/club-world-cup/usa-2025/articles/squads-numbers-stats) | 32 支参赛队的国籍计数，包括巴西 142、阿根廷 104、西班牙 54、葡萄牙 49、美国 42、墨西哥 40 等 | 校准“精英俱乐部样本”的主要国籍权重 | 这是洲际冠军级俱乐部样本，不代表全球所有职业球员 |
+| [FIFA Club World Cup 2025 squad lists](https://www.fifa.com/en/tournaments/mens/club-world-cup/usa-2025/articles/world-cup-winners-fcwc25-usa-lionel-messi-neuer-griezmann) | 官方表逐项列出 81 个国籍，包括巴西 141、阿根廷 103、西班牙 54、葡萄牙 49、墨西哥 41、美国 40 等 | 先按洲足联聚合人数，再在洲内按具体国家人数绘制扇区 | 这是洲际代表俱乐部的精英样本，不代表全球所有职业球员 |
 | [FIFA Men’s January transfer snapshot 2025](https://inside.fifa.com/transfer-system/transfer-reports?tab=Men%27s+January+transfer+snapshot+2025) | 5,863 笔男子职业国际转会；平均年龄 24.9 岁；17.7% 涉及转会费 | 转会年龄中心值、有偿转会比例与转会类型关系 | 只覆盖国际转会，不能代表同协会内部转会 |
 | [FIFA Transfer Reports Methodology](https://inside.fifa.com/transfer-system/transfer-reports/methodology) | 统计 11 人制职业球员的国际转会，交易由俱乐部和协会通过 TMS 提交 | 限定转会概率的适用范围 | 不是完整的球员职业履历数据库 |
 
@@ -37,8 +37,7 @@ Transfermarkt 在本项目中只用于确定现代职业球员资料页常见的
 
 - 全球 128,694 名男子职业球员；
 - 报告逐项列出的 27 个协会人数，以及由全球总数减出的 62,992 人尾部桶；
-- 各洲本土球员比例：AFC 81%、CAF 92%、Concacaf 82%、CONMEBOL 83%、OFC 94%、UEFA 66%；
-- 精英俱乐部样本中已公布的主要国籍人数；
+- 世俱杯精英样本中完整 81 个国籍人数，以及由这些人数汇总出的六个洲足联权重；
 - 2025 年 1 月男子国际转会平均年龄 24.9 岁；
 - 2025 年 1 月男子国际转会中 17.7% 涉及费用；
 - 2023 年全球男子职业球员和俱乐部数量级。
@@ -47,8 +46,6 @@ Transfermarkt 在本项目中只用于确定现代职业球员资料页常见的
 
 - 转会类型权重为自由转会 62、租借 20、永久转会 18。18 对齐公开的有偿转会比例；
   62 和 20 用来表达“自由球员占多数、其余主要为租借”的公开关系，不是 FIFA 发布的精确百分比。
-- 精英国籍表中未逐项公布的国家使用小权重和“其他国家”尾部桶，保留全球多样性；
-  这些补充权重不是公开统计值。
 - 转会年龄围绕 24.9 岁抽样，并受首秀和退役年龄约束；它是校准后的生成分布，
   不是对原始 TMS 记录的复刻。
 
