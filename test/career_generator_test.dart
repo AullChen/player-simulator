@@ -1,6 +1,10 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:player_simulator/data/football_catalog.dart';
+import 'package:player_simulator/data/life_event_pool.dart';
+import 'package:player_simulator/domain/player_attributes.dart';
+import 'package:player_simulator/domain/player_profile.dart';
 import 'package:player_simulator/services/life_simulator.dart';
 import 'package:player_simulator/services/random_career_generator.dart';
 
@@ -84,16 +88,23 @@ void main() {
         position: '中锋',
         random: Random(7),
       );
-      for (var index = 0; index < simulator.stages.length; index++) {
+      for (var index = 0; index < simulator.totalStages; index++) {
         simulator.choose(index, 0);
       }
 
       final player = simulator.finish(name: '测试前锋');
 
       expect(player.name, '测试前锋');
-      expect(player.career, hasLength(simulator.stages.length));
+      expect(player.career, hasLength(simulator.totalStages));
       expect(player.peakRating, greaterThan(player.initialRating));
       expect(player.stats.goals, greaterThan(0));
+      expect(player.characterAttributes, isNotNull);
+      expect(player.toJson(), contains('character_model'));
+      final restored = PlayerProfile.fromJson(player.toJson());
+      expect(
+        restored.characterAttributes![PlayerAttribute.stamina],
+        player.characterAttributes![PlayerAttribute.stamina],
+      );
     });
 
     test('offers 5, 8, 11 and 22-node career densities', () {
@@ -111,29 +122,24 @@ void main() {
           density: entry.key,
         );
 
-        expect(simulator.stages, hasLength(entry.value));
-        expect(simulator.stages.first.age, 15);
-        expect(simulator.stages.last.age, lessThanOrEqualTo(36));
+        expect(simulator.totalStages, entry.value);
+        expect(simulator.currentStage.age, 15);
+        for (var index = 0; index < simulator.totalStages; index++) {
+          simulator.choose(index, 0);
+        }
+        expect(simulator.decisions.last.stage.age, lessThanOrEqualTo(36));
       }
     });
 
-    test('normalizes outcomes so denser modes do not grant extra ratings', () {
-      final profiles = <CareerDecisionDensity, int>{};
-
-      for (final density in CareerDecisionDensity.values) {
-        final simulator = LifeSimulator(
-          nationality: '中国',
-          position: '中锋',
-          density: density,
-          random: Random(42),
+    test('provides at least 100 raw candidates in every career phase', () {
+      for (final phase in CareerPhase.values) {
+        final options = LifeEventPool.rawOptionsFor(phase);
+        expect(options.length, greaterThanOrEqualTo(100));
+        expect(
+          options.map((item) => item.id).toSet(),
+          hasLength(options.length),
         );
-        for (var index = 0; index < simulator.stages.length; index++) {
-          simulator.choose(index, 0);
-        }
-        profiles[density] = simulator.finish().peakRating;
       }
-
-      expect(profiles.values.toSet(), hasLength(1));
     });
 
     test('turns detailed choices into structured career records', () {
@@ -143,8 +149,13 @@ void main() {
         density: CareerDecisionDensity.everyYear,
         random: Random(9),
       );
-      for (var index = 0; index < simulator.stages.length; index++) {
-        simulator.choose(index, index % 3);
+      for (var index = 0; index < simulator.totalStages; index++) {
+        expect(
+          simulator.currentStage.candidatePoolSize,
+          greaterThanOrEqualTo(100),
+        );
+        expect(simulator.currentStage.choices.length, inInclusiveRange(3, 5));
+        simulator.choose(index, index % simulator.currentStage.choices.length);
       }
 
       final player = simulator.finish();
@@ -159,6 +170,61 @@ void main() {
         ),
         player.stats.appearances,
       );
+      final realClubs = FootballCatalog.clubs.map((club) => club.name).toSet();
+      expect(
+        player.career.every((chapter) => realClubs.contains(chapter.club)),
+        isTrue,
+      );
+    });
+
+    test('character values change eligible options', () {
+      final lowModel = PlayerAttributes({
+        for (final attribute in PlayerAttribute.values) attribute: 30,
+      });
+      final highModel = PlayerAttributes({
+        for (final attribute in PlayerAttribute.values) attribute: 80,
+      });
+      final low = LifeSimulator(
+        nationality: '中国',
+        position: '中前卫',
+        random: Random(11),
+        initialAttributes: lowModel,
+      );
+      final high = LifeSimulator(
+        nationality: '中国',
+        position: '中前卫',
+        random: Random(11),
+        initialAttributes: highModel,
+      );
+
+      expect(
+        low.currentStage.eligiblePoolSize,
+        isNot(high.currentStage.eligiblePoolSize),
+      );
+    });
+
+    test('intensive training raises later health-event weight', () {
+      LifeSimulator? simulator;
+      var choiceIndex = -1;
+      for (var seed = 0; seed < 500 && choiceIndex < 0; seed++) {
+        final candidate = LifeSimulator(
+          nationality: '中国',
+          position: '中锋',
+          random: Random(seed),
+        );
+        choiceIndex = candidate.currentStage.choices.indexWhere(
+          (choice) => choice.actionId == 'intensive',
+        );
+        if (choiceIndex >= 0) simulator = candidate;
+      }
+
+      expect(simulator, isNotNull);
+      final before = simulator!.themeWeight(LifeEventTheme.health);
+      final previousLoad = simulator.trainingLoad;
+      simulator.choose(0, choiceIndex);
+
+      expect(simulator.trainingLoad, greaterThan(previousLoad));
+      expect(simulator.themeWeight(LifeEventTheme.health), greaterThan(before));
     });
   });
 }

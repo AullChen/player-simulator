@@ -19,7 +19,7 @@ class ProbabilitySource {
 }
 
 abstract final class ProbabilitySources {
-  static const dataVersion = '2026.07-public-v1';
+  static const dataVersion = '2026.07-public-v2';
 
   static const sources = <ProbabilitySource>[
     ProbabilitySource(
@@ -30,7 +30,16 @@ abstract final class ProbabilitySources {
       scope: '全球男子职业足球人口、俱乐部和协会调查',
       url:
           'https://inside.fifa.com/legal/news/fifa-publishes-professional-football-report-2023',
-      appliedTo: ['职业人口口径', '俱乐部生态基线'],
+      appliedTo: ['职业人口口径', '协会注册人数转盘', '各洲本土球员比例'],
+    ),
+    ProbabilitySource(
+      id: 'fifa-club-world-cup-clubs-2025',
+      title: 'FIFA Club World Cup 2025 draw and participating clubs',
+      publisher: 'FIFA',
+      publishedYear: 2024,
+      scope: '2025 年赛事的 32 支洲际代表俱乐部',
+      url: 'https://www.fifa.com/en/articles/draw-procedures-confirmed',
+      appliedTo: ['随机模式与人生模拟的真实俱乐部基础目录'],
     ),
     ProbabilitySource(
       id: 'fifa-club-world-cup-squads-2025',

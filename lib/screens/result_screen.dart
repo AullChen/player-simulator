@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../domain/player_attributes.dart';
 import '../domain/player_profile.dart';
 import '../l10n/app_localizations.dart';
 import '../services/story_api_client.dart';
@@ -114,6 +115,10 @@ class _ResultScreenState extends State<ResultScreen> {
             _RegistrationPanel(profile: profile),
             const SizedBox(height: 18),
             _PerformancePanel(profile: profile),
+            if (profile.characterAttributes != null) ...[
+              const SizedBox(height: 18),
+              _CharacterModelPanel(model: profile.characterAttributes!),
+            ],
             const SizedBox(height: 18),
             _TransferPanel(profile: profile),
             const SizedBox(height: 18),
@@ -144,6 +149,76 @@ class _ResultScreenState extends State<ResultScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CharacterModelPanel extends StatelessWidget {
+  const _CharacterModelPanel({required this.model});
+
+  final PlayerAttributes model;
+
+  @override
+  Widget build(BuildContext context) {
+    return _DossierSection(
+      label: 'Character model',
+      title: context.tr('完整人物数值', 'Complete character attributes'),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth >= 640
+              ? (constraints.maxWidth - 28) / 3
+              : constraints.maxWidth >= 390
+              ? (constraints.maxWidth - 14) / 2
+              : constraints.maxWidth;
+          return Wrap(
+            spacing: 14,
+            runSpacing: 12,
+            children: [
+              for (final attribute in PlayerAttribute.values)
+                SizedBox(
+                  width: width,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              context.tr(attribute.labelZh, attribute.labelEn),
+                              style: const TextStyle(
+                                color: AppColors.ink,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${model[attribute]}',
+                            style: const TextStyle(
+                              color: AppColors.pitchDark,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(99),
+                        child: LinearProgressIndicator(
+                          value: model[attribute] / 99,
+                          minHeight: 5,
+                          backgroundColor: AppColors.line,
+                          color: AppColors.pitchDark,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../domain/player_attributes.dart';
+import '../domain/player_profile.dart';
+import '../l10n/app_localizations.dart';
 import '../services/life_simulator.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_scaffold.dart';
@@ -23,7 +26,7 @@ class LifeModeScreen extends StatefulWidget {
 
 class _LifeModeScreenState extends State<LifeModeScreen> {
   late final LifeSimulator _simulator;
-  var _stageIndex = 0;
+  PlayerProfile? _completedProfile;
 
   @override
   void initState() {
@@ -36,14 +39,15 @@ class _LifeModeScreenState extends State<LifeModeScreen> {
   }
 
   void _choose(int choiceIndex) {
-    _simulator.choose(_stageIndex, choiceIndex);
-    setState(() => _stageIndex += 1);
+    _simulator.choose(_simulator.decisions.length, choiceIndex);
+    if (_simulator.isComplete) {
+      _completedProfile = _simulator.finish();
+    }
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    final isComplete = _stageIndex == _simulator.stages.length;
-    final stage = isComplete ? null : _simulator.stages[_stageIndex];
     final recentDecisions = _simulator.decisions.length <= 3
         ? _simulator.decisions
         : _simulator.decisions.sublist(_simulator.decisions.length - 3);
@@ -55,50 +59,229 @@ class _LifeModeScreenState extends State<LifeModeScreen> {
           duration: MediaQuery.disableAnimationsOf(context)
               ? Duration.zero
               : const Duration(milliseconds: 280),
-          child: isComplete
+          child: _simulator.isComplete
               ? _CompletionPanel(
                   key: const ValueKey('complete'),
                   simulator: _simulator,
+                  profile: _completedProfile!,
                 )
-              : Column(
-                  key: ValueKey(_stageIndex),
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _StageProgress(
-                      current: _stageIndex,
-                      total: _simulator.stages.length,
-                      density: widget.density.label,
-                    ),
-                    const SizedBox(height: 28),
-                    SectionLabel('Age ${stage!.age}'),
-                    const SizedBox(height: 8),
-                    Text(
-                      stage.title,
-                      style: Theme.of(context).textTheme.displaySmall,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      stage.context,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                    const SizedBox(height: 24),
-                    for (var index = 0; index < stage.choices.length; index++)
-                      _ChoiceCard(
-                        index: index,
-                        choice: stage.choices[index],
-                        onTap: () => _choose(index),
-                      ),
-                    if (_simulator.decisions.isNotEmpty) ...[
-                      const SizedBox(height: 18),
-                      Text(
-                        '${_simulator.decisions.length > 3 ? '最近选择' : '此前选择'}：'
-                        '${recentDecisions.map((decision) => decision.choice.title).join(' → ')}',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ],
-                  ],
+              : _CareerStage(
+                  key: ValueKey(_simulator.decisions.length),
+                  simulator: _simulator,
+                  recentDecisions: recentDecisions,
+                  onChoose: _choose,
                 ),
         ),
+      ),
+    );
+  }
+}
+
+class _CareerStage extends StatelessWidget {
+  const _CareerStage({
+    super.key,
+    required this.simulator,
+    required this.recentDecisions,
+    required this.onChoose,
+  });
+
+  final LifeSimulator simulator;
+  final List<LifeDecision> recentDecisions;
+  final ValueChanged<int> onChoose;
+
+  @override
+  Widget build(BuildContext context) {
+    final stage = simulator.currentStage;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _StageProgress(
+          current: simulator.decisions.length,
+          total: simulator.totalStages,
+          density: context.tr(
+            simulator.density.label,
+            simulator.density.labelEn,
+          ),
+        ),
+        const SizedBox(height: 20),
+        _CharacterPanel(simulator: simulator),
+        const SizedBox(height: 24),
+        SectionLabel('AGE ${stage.age}'),
+        const SizedBox(height: 8),
+        Text(
+          context.tr(stage.titleZh, stage.titleEn),
+          style: Theme.of(context).textTheme.displaySmall,
+        ),
+        const SizedBox(height: 10),
+        Text(
+          context.tr(stage.contextZh, stage.contextEn),
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _PoolChip(
+              icon: Icons.account_tree_outlined,
+              text: context.tr(
+                '${stage.candidatePoolSize} 个候选',
+                '${stage.candidatePoolSize} candidates',
+              ),
+            ),
+            _PoolChip(
+              icon: Icons.filter_alt_outlined,
+              text: context.tr(
+                '${stage.eligiblePoolSize} 个符合人物模型',
+                '${stage.eligiblePoolSize} fit this character',
+              ),
+            ),
+            _PoolChip(
+              icon: Icons.style_outlined,
+              text: context.tr(
+                '本次展示 ${stage.choices.length} 个',
+                'Showing ${stage.choices.length}',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        for (var index = 0; index < stage.choices.length; index++)
+          _ChoiceCard(
+            index: index,
+            choice: stage.choices[index],
+            onTap: () => onChoose(index),
+          ),
+        if (recentDecisions.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text(
+            '${context.tr('近期轨迹', 'Recent path')}: '
+            '${recentDecisions.map((decision) => context.tr(decision.choice.titleZh, decision.choice.titleEn)).join(' → ')}',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _CharacterPanel extends StatelessWidget {
+  const _CharacterPanel({required this.simulator});
+
+  final LifeSimulator simulator;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: AppColors.navy,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    context.tr('人物模型', 'Character model'),
+                    style: const TextStyle(
+                      color: AppColors.gold,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${context.tr('综合', 'OVR')} ${simulator.overallRating}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${simulator.currentClub}  ·  '
+              '${context.tr('训练负荷', 'Load')} ${simulator.trainingLoad}  ·  '
+              '${context.tr('伤病风险', 'Injury risk')} ${simulator.injuryRisk}',
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final attribute in PlayerAttribute.values)
+                  Container(
+                    width: 102,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            context.tr(attribute.labelZh, attribute.labelEn),
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white60,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '${simulator.attributes[attribute]}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PoolChip extends StatelessWidget {
+  const _PoolChip({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8EEF6),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: const Color(0xFF2E5D9F)),
+          const SizedBox(width: 5),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Color(0xFF2E5D9F),
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -124,7 +307,7 @@ class _StageProgress extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                '$density · 第 ${current + 1} / $total 个节点',
+                '$density · ${current + 1} / $total',
                 style: const TextStyle(
                   color: AppColors.ink,
                   fontSize: 12,
@@ -179,6 +362,7 @@ class _ChoiceCard extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(18),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
                   width: 42,
@@ -203,7 +387,7 @@ class _ChoiceCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        choice.title,
+                        context.tr(choice.titleZh, choice.titleEn),
                         style: const TextStyle(
                           fontWeight: FontWeight.w900,
                           color: AppColors.ink,
@@ -211,9 +395,30 @@ class _ChoiceCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        choice.description,
+                        context.tr(choice.descriptionZh, choice.descriptionEn),
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
+                      if (choice.delta.highlights.isNotEmpty) ...[
+                        const SizedBox(height: 9),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final change in choice.delta.highlights)
+                              Text(
+                                '${context.tr(change.key.labelZh, change.key.labelEn)} '
+                                '${change.value > 0 ? '+' : ''}${change.value}',
+                                style: TextStyle(
+                                  color: change.value > 0
+                                      ? AppColors.pitchDark
+                                      : const Color(0xFFB33A3A),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -228,20 +433,27 @@ class _ChoiceCard extends StatelessWidget {
 }
 
 class _CompletionPanel extends StatelessWidget {
-  const _CompletionPanel({super.key, required this.simulator});
+  const _CompletionPanel({
+    super.key,
+    required this.simulator,
+    required this.profile,
+  });
 
   final LifeSimulator simulator;
+  final PlayerProfile profile;
 
   @override
   Widget build(BuildContext context) {
-    final profile = simulator.finish();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionLabel('Career complete'),
+        SectionLabel(context.tr('生涯完成', 'CAREER COMPLETE')),
         const SizedBox(height: 10),
         Text(
-          '${simulator.decisions.length} 次选择，\n一段完整人生。',
+          context.tr(
+            '${simulator.decisions.length} 次选择，\n一段完整人生。',
+            '${simulator.decisions.length} choices.\nOne complete career.',
+          ),
           style: Theme.of(context).textTheme.displaySmall,
         ),
         const SizedBox(height: 20),
@@ -252,9 +464,9 @@ class _CompletionPanel extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '选择轨迹',
-                  style: TextStyle(
+                Text(
+                  context.tr('选择轨迹', 'Decision path'),
+                  style: const TextStyle(
                     color: AppColors.gold,
                     fontWeight: FontWeight.w900,
                   ),
@@ -264,11 +476,15 @@ class _CompletionPanel extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SizedBox(
                           width: 52,
                           child: Text(
-                            '${decision.stage.age} 岁',
+                            context.tr(
+                              '${decision.stage.age} 岁',
+                              'Age ${decision.stage.age}',
+                            ),
                             style: const TextStyle(
                               color: Colors.white54,
                               fontSize: 12,
@@ -277,7 +493,10 @@ class _CompletionPanel extends StatelessWidget {
                         ),
                         Expanded(
                           child: Text(
-                            decision.choice.title,
+                            context.tr(
+                              decision.choice.titleZh,
+                              decision.choice.titleEn,
+                            ),
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
@@ -299,7 +518,7 @@ class _CompletionPanel extends StatelessWidget {
             ),
           ),
           icon: const Icon(Icons.description_outlined),
-          label: const Text('查看最终档案与故事'),
+          label: Text(context.tr('查看最终档案与故事', 'View dossier and story')),
         ),
       ],
     );

@@ -1,3 +1,5 @@
+import 'player_attributes.dart';
+
 enum CareerMode { random, life, dream }
 
 class CareerChapter {
@@ -257,6 +259,7 @@ class PlayerProfile {
     this.injuryHistory = const [],
     this.marketValueHistory = const [],
     this.competitionStats = const [],
+    this.characterAttributes,
   });
 
   final CareerMode mode;
@@ -294,6 +297,7 @@ class PlayerProfile {
   final List<MarketValuePoint> marketValueHistory;
   final List<CompetitionStats> competitionStats;
   final CareerStats stats;
+  final PlayerAttributes? characterAttributes;
 
   factory PlayerProfile.fromJson(Map<String, dynamic> json) {
     final personal = _map(json['personal_information']);
@@ -360,6 +364,9 @@ class PlayerProfile {
         career['competition_statistics'],
       ).map(CompetitionStats.fromJson).toList(),
       stats: CareerStats.fromJson(_map(career['statistics'])),
+      characterAttributes: _map(json['character_model']).isEmpty
+          ? null
+          : PlayerAttributes.fromJson(_map(json['character_model'])),
     );
   }
 
@@ -399,6 +406,8 @@ class PlayerProfile {
       'peak_rating': peakRating,
       'final_rating': finalRating,
     },
+    if (characterAttributes != null)
+      'character_model': characterAttributes!.toJson(),
     'career_information': {
       'academy': academy,
       'debut_age': debutAge,

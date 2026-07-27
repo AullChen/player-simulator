@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/football_catalog.dart';
+import '../l10n/app_localizations.dart';
 import '../services/life_simulator.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_scaffold.dart';
@@ -28,20 +29,27 @@ class _LifeSetupScreenState extends State<LifeSetupScreen> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: '模拟球员 · 基础设定',
+      title: context.tr('模拟球员 · 基础设定', 'Life player · Setup'),
       child: ContentWidth(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SectionLabel('Life simulation'),
+            SectionLabel(context.tr('人生模拟', 'LIFE SIMULATION')),
             const SizedBox(height: 10),
             Text(
-              '只决定起点，\n把过程交给选择。',
+              context.tr(
+                '只决定起点，\n把过程交给选择。',
+                'Choose the starting point.\nLet decisions shape the rest.',
+              ),
               style: Theme.of(context).textTheme.displaySmall,
             ),
             const SizedBox(height: 10),
             Text(
-              '你只指定国籍、场上位置和选择密度。能力、俱乐部与荣誉会被每一次生涯抉择逐步塑造。',
+              context.tr(
+                '你只指定国籍、场上位置和选择密度。能力、俱乐部与荣誉会被每一次生涯抉择逐步塑造。',
+                'Choose nationality, position and decision density. Every '
+                    'decision shapes abilities, clubs and honours.',
+              ),
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 28),
@@ -51,9 +59,9 @@ class _LifeSetupScreenState extends State<LifeSetupScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text(
-                      '基础信息',
-                      style: TextStyle(
+                    Text(
+                      context.tr('基础信息', 'Basic information'),
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
                       ),
@@ -61,9 +69,9 @@ class _LifeSetupScreenState extends State<LifeSetupScreen> {
                     const SizedBox(height: 18),
                     DropdownButtonFormField<String>(
                       value: _nationality,
-                      decoration: const InputDecoration(
-                        labelText: '国籍',
-                        prefixIcon: Icon(Icons.public),
+                      decoration: InputDecoration(
+                        labelText: context.tr('国籍', 'Nationality'),
+                        prefixIcon: const Icon(Icons.public),
                       ),
                       items: FootballCatalog.nationalities
                           .map(
@@ -82,9 +90,9 @@ class _LifeSetupScreenState extends State<LifeSetupScreen> {
                     const SizedBox(height: 14),
                     DropdownButtonFormField<String>(
                       value: _position,
-                      decoration: const InputDecoration(
-                        labelText: '球场位置',
-                        prefixIcon: Icon(Icons.sports_soccer),
+                      decoration: InputDecoration(
+                        labelText: context.tr('球场位置', 'Position'),
+                        prefixIcon: const Icon(Icons.sports_soccer),
                       ),
                       items: FootballCatalog.positions
                           .map(
@@ -101,9 +109,9 @@ class _LifeSetupScreenState extends State<LifeSetupScreen> {
                       },
                     ),
                     const SizedBox(height: 24),
-                    const Text(
-                      '选择密度',
-                      style: TextStyle(
+                    Text(
+                      context.tr('选择密度', 'Decision density'),
+                      style: const TextStyle(
                         color: AppColors.ink,
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
@@ -111,7 +119,11 @@ class _LifeSetupScreenState extends State<LifeSetupScreen> {
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      '密度只改变叙事细节，最终属性会按等效 5 次选择归一化。',
+                      context.tr(
+                        '从 5 个关键节点到逐年选择。更多节点意味着更多风险与塑造人物的机会。',
+                        'Choose five milestones or every career year. More '
+                            'nodes mean more risk and more chances to shape the player.',
+                      ),
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 12),
@@ -136,7 +148,12 @@ class _LifeSetupScreenState extends State<LifeSetupScreen> {
                         ),
                       ),
                       icon: const Icon(Icons.arrow_forward),
-                      label: Text('开始 ${_density.nodeCount} 个生涯选择'),
+                      label: Text(
+                        context.tr(
+                          '开始 ${_density.nodeCount} 个生涯选择',
+                          'Start ${_density.nodeCount} career choices',
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -149,15 +166,22 @@ class _LifeSetupScreenState extends State<LifeSetupScreen> {
                 color: const Color(0xFFE8EEF6),
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: const Row(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline, color: Color(0xFF2E5D9F)),
-                  SizedBox(width: 12),
+                  const Icon(Icons.info_outline, color: Color(0xFF2E5D9F)),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      '没有“正确答案”。激进选择提升能力与声望，稳定选择通常带来更长的出场时间。',
-                      style: TextStyle(color: Color(0xFF29445F), height: 1.5),
+                      context.tr(
+                        '没有“正确答案”。训练会提高能力，也会积累负荷；人物数值会改变未来能看到的分支。',
+                        'There is no single right answer. Training builds '
+                            'ability and load; character values change future branches.',
+                      ),
+                      style: const TextStyle(
+                        color: Color(0xFF29445F),
+                        height: 1.5,
+                      ),
                     ),
                   ),
                 ],
@@ -226,7 +250,7 @@ class _DensityCard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            density.label,
+                            context.tr(density.label, density.labelEn),
                             style: const TextStyle(
                               color: AppColors.ink,
                               fontWeight: FontWeight.w900,
@@ -234,7 +258,10 @@ class _DensityCard extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          '${density.nodeCount} 节点 · ${density.estimatedTime}',
+                          context.tr(
+                            '${density.nodeCount} 节点 · ${density.estimatedTime}',
+                            '${density.nodeCount} nodes · ${density.estimatedTimeEn}',
+                          ),
                           style: const TextStyle(
                             color: AppColors.pitchDark,
                             fontSize: 11,
@@ -245,7 +272,7 @@ class _DensityCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      density.description,
+                      context.tr(density.description, density.descriptionEn),
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
