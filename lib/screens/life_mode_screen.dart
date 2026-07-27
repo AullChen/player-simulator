@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../domain/player_attributes.dart';
 import '../domain/player_profile.dart';
 import '../l10n/app_localizations.dart';
 import '../services/life_simulator.dart';
@@ -103,8 +102,6 @@ class _CareerStage extends StatelessWidget {
             simulator.density.labelEn,
           ),
         ),
-        const SizedBox(height: 20),
-        _CharacterPanel(simulator: simulator),
         const SizedBox(height: 24),
         SectionLabel('AGE ${stage.age}'),
         const SizedBox(height: 8),
@@ -123,24 +120,17 @@ class _CareerStage extends StatelessWidget {
           runSpacing: 8,
           children: [
             _PoolChip(
-              icon: Icons.account_tree_outlined,
+              icon: Icons.stadium_outlined,
               text: context.tr(
-                '${stage.candidatePoolSize} 个候选',
-                '${stage.candidatePoolSize} candidates',
-              ),
-            ),
-            _PoolChip(
-              icon: Icons.filter_alt_outlined,
-              text: context.tr(
-                '${stage.eligiblePoolSize} 个符合人物模型',
-                '${stage.eligiblePoolSize} fit this character',
+                '当前俱乐部：${simulator.currentClub}',
+                'Current club: ${simulator.currentClub}',
               ),
             ),
             _PoolChip(
               icon: Icons.style_outlined,
               text: context.tr(
-                '本次展示 ${stage.choices.length} 个',
-                'Showing ${stage.choices.length}',
+                '本轮有 ${stage.choices.length} 条可选道路',
+                '${stage.choices.length} paths this round',
               ),
             ),
           ],
@@ -161,95 +151,6 @@ class _CareerStage extends StatelessWidget {
           ),
         ],
       ],
-    );
-  }
-}
-
-class _CharacterPanel extends StatelessWidget {
-  const _CharacterPanel({required this.simulator});
-
-  final LifeSimulator simulator;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: AppColors.navy,
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    context.tr('人物模型', 'Character model'),
-                    style: const TextStyle(
-                      color: AppColors.gold,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                Text(
-                  '${context.tr('综合', 'OVR')} ${simulator.overallRating}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '${simulator.currentClub}  ·  '
-              '${context.tr('训练负荷', 'Load')} ${simulator.trainingLoad}  ·  '
-              '${context.tr('伤病风险', 'Injury risk')} ${simulator.injuryRisk}',
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
-            ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final attribute in PlayerAttribute.values)
-                  Container(
-                    width: 102,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            context.tr(attribute.labelZh, attribute.labelEn),
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white60,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '${simulator.attributes[attribute]}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -395,30 +296,19 @@ class _ChoiceCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        context.tr(choice.descriptionZh, choice.descriptionEn),
+                        context.tr(choice.backgroundZh, choice.backgroundEn),
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
-                      if (choice.delta.highlights.isNotEmpty) ...[
-                        const SizedBox(height: 9),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: [
-                            for (final change in choice.delta.highlights)
-                              Text(
-                                '${context.tr(change.key.labelZh, change.key.labelEn)} '
-                                '${change.value > 0 ? '+' : ''}${change.value}',
-                                style: TextStyle(
-                                  color: change.value > 0
-                                      ? AppColors.pitchDark
-                                      : const Color(0xFFB33A3A),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                          ],
+                      const SizedBox(height: 9),
+                      Text(
+                        '${context.tr('你的选择：', 'Your response: ')}'
+                        '${context.tr(choice.descriptionZh, choice.descriptionEn)}',
+                        style: const TextStyle(
+                          color: AppColors.ink,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
                         ),
-                      ],
+                      ),
                     ],
                   ),
                 ),

@@ -97,6 +97,8 @@ class LifeChoice {
     required this.theme,
     required this.titleZh,
     required this.titleEn,
+    required this.backgroundZh,
+    required this.backgroundEn,
     required this.descriptionZh,
     required this.descriptionEn,
     required this.delta,
@@ -110,6 +112,8 @@ class LifeChoice {
   final LifeEventTheme theme;
   final String titleZh;
   final String titleEn;
+  final String backgroundZh;
+  final String backgroundEn;
   final String descriptionZh;
   final String descriptionEn;
   final AttributeDelta delta;
@@ -310,6 +314,7 @@ class LifeSimulator {
     final finalRating = overallRating.clamp(45, 94);
     final peakRating = max(_peakOverall, max(initialRating + 4, finalRating));
     final birthYear = 2011 - density.ages.first;
+    final debutAge = 16 + _random.nextInt(3);
     final career = [
       for (var index = 0; index < decisions.length; index++)
         CareerChapter(
@@ -410,7 +415,8 @@ class LifeSimulator {
       primaryPosition: position,
       secondaryPosition: _secondaryPosition(),
       academy: '${_initialClub.name} 青训学院',
-      debutAge: 16 + _random.nextInt(3),
+      academyEntryAge: 11,
+      debutAge: debutAge,
       retirementAge: retirementAge,
       initialRating: initialRating,
       peakRating: peakRating.clamp(initialRating + 4, 96),
@@ -424,9 +430,11 @@ class LifeSimulator {
       currentClub: _currentClub.name,
       currentLeague: '${_currentClub.country}职业联赛',
       joinedClubDate: _transfers.isEmpty
-          ? '$birthYear'
+          ? '${birthYear + debutAge}-07-01'
           : _transfers.last.season.split('/').first,
-      contractUntil: '${birthYear + retirementAge + 1}-06-30',
+      contractStartDate:
+          '${max(_transfers.isEmpty ? birthYear + debutAge : int.parse(_transfers.last.season.split('/').first), birthYear + retirementAge - 2)}-07-01',
+      contractUntil: '${birthYear + retirementAge}-06-30',
       agent: '玩家自定义经纪团队',
       marketValueMillions: values.isEmpty ? 0 : values.last.valueMillions,
       nationalTeam: nationalCaps == 0 ? '未入选' : nationality,
@@ -454,13 +462,8 @@ class LifeSimulator {
       phase: phase,
       titleZh: _phaseTitleZh(phase),
       titleEn: _phaseTitleEn(phase),
-      contextZh:
-          '人物模型从 ${raw.length} 个候选中筛选出 ${eligible.length} 个可行分支，'
-          '你当前效力于 ${_currentClub.name}。',
-      contextEn:
-          'The character model found ${eligible.length} eligible branches '
-          'from ${raw.length} candidates. You currently play for '
-          '${_currentClub.name}.',
+      contextZh: _stageContextZh(index, age),
+      contextEn: _stageContextEn(index, age),
       candidatePoolSize: raw.length,
       eligiblePoolSize: eligible.length,
       choices: [
@@ -473,6 +476,8 @@ class LifeSimulator {
                 '${candidate.scenario.titleZh} · ${candidate.action.titleZh}',
             titleEn:
                 '${candidate.scenario.titleEn} · ${candidate.action.titleEn}',
+            backgroundZh: candidate.scenario.contextZh,
+            backgroundEn: candidate.scenario.contextEn,
             descriptionZh: candidate.action.descriptionZh,
             descriptionEn: candidate.action.descriptionEn,
             delta: candidate.action.delta,
@@ -482,6 +487,54 @@ class LifeSimulator {
           ),
       ],
     );
+  }
+
+  String _stageContextZh(int index, int age) {
+    if (index == 0) {
+      return '你在${_initialClub.name}的青训体系里度过了数年。'
+          '$age 岁这个夏天，教练第一次把“职业球员”四个字放到你面前。'
+          '下面每条路都来自此刻真实发生的一种处境。';
+    }
+    final previous = decisions.last;
+    final seasons = max(1, age - previous.stage.age);
+    final transferText = previous.choice.causesTransfer
+        ? '那次决定把你带到${_currentClub.name}，你重新适应了训练节奏和更衣室。'
+        : '你留在${_currentClub.name}，角色在连续比赛和日常训练中逐渐变化。';
+    final physicalText = _injuries.isNotEmpty
+        ? '期间一次${_injuries.last.type}打断了原定计划，复出后的出场顺位也发生了变化。'
+        : trainingLoad >= 55
+        ? '密集训练和赛程让身体恢复变慢，教练组开始更谨慎地安排你的出场。'
+        : '你保持了相对稳定的出勤，也积累了更多比赛经验。';
+    return '从 ${previous.stage.age} 岁到 $age 岁的 $seasons 个赛季里，'
+        '你选择了“${previous.choice.titleZh}”。$transferText$physicalText'
+        '现在，新的合同、比赛和场外关系同时来到桌面上。';
+  }
+
+  String _stageContextEn(int index, int age) {
+    if (index == 0) {
+      return 'You have spent several years inside ${_initialClub.name}’s '
+          'academy. This summer, at $age, the coach speaks to you about '
+          'becoming a professional for the first time. Each path below '
+          'begins with a concrete situation now unfolding around you.';
+    }
+    final previous = decisions.last;
+    final seasons = max(1, age - previous.stage.age);
+    final transferText = previous.choice.causesTransfer
+        ? 'That decision took you to ${_currentClub.name}, where you had to '
+              'learn a new training rhythm and dressing room.'
+        : 'You stayed at ${_currentClub.name}, while matches and daily '
+              'training gradually changed your role.';
+    final physicalText = _injuries.isNotEmpty
+        ? ' A ${_injuries.last.type} interrupted the plan and altered your '
+              'place in the team after recovery.'
+        : trainingLoad >= 55
+        ? ' Heavy training and fixtures slowed recovery, so the staff became '
+              'more careful with your minutes.'
+        : ' Reliable availability gave you a steadier run of matches.';
+    return 'Across the $seasons seasons from age ${previous.stage.age} to '
+        '$age, you lived with the consequences of '
+        '“${previous.choice.titleEn}”. $transferText$physicalText '
+        'A new mix of contracts, matches and relationships now demands a decision.';
   }
 
   bool _isEligible(LifeCandidate candidate) {
