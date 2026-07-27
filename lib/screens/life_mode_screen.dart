@@ -10,10 +10,12 @@ class LifeModeScreen extends StatefulWidget {
     super.key,
     required this.nationality,
     required this.position,
+    this.density = CareerDecisionDensity.milestones,
   });
 
   final String nationality;
   final String position;
+  final CareerDecisionDensity density;
 
   @override
   State<LifeModeScreen> createState() => _LifeModeScreenState();
@@ -29,6 +31,7 @@ class _LifeModeScreenState extends State<LifeModeScreen> {
     _simulator = LifeSimulator(
       nationality: widget.nationality,
       position: widget.position,
+      density: widget.density,
     );
   }
 
@@ -39,8 +42,11 @@ class _LifeModeScreenState extends State<LifeModeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isComplete = _stageIndex == LifeSimulator.stages.length;
-    final stage = isComplete ? null : LifeSimulator.stages[_stageIndex];
+    final isComplete = _stageIndex == _simulator.stages.length;
+    final stage = isComplete ? null : _simulator.stages[_stageIndex];
+    final recentDecisions = _simulator.decisions.length <= 3
+        ? _simulator.decisions
+        : _simulator.decisions.sublist(_simulator.decisions.length - 3);
 
     return AppScaffold(
       title: '${widget.nationality} · ${widget.position}',
@@ -58,7 +64,11 @@ class _LifeModeScreenState extends State<LifeModeScreen> {
                   key: ValueKey(_stageIndex),
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _StageProgress(current: _stageIndex),
+                    _StageProgress(
+                      current: _stageIndex,
+                      total: _simulator.stages.length,
+                      density: widget.density.label,
+                    ),
                     const SizedBox(height: 28),
                     SectionLabel('Age ${stage!.age}'),
                     const SizedBox(height: 8),
@@ -81,7 +91,8 @@ class _LifeModeScreenState extends State<LifeModeScreen> {
                     if (_simulator.decisions.isNotEmpty) ...[
                       const SizedBox(height: 18),
                       Text(
-                        '此前选择：${_simulator.decisions.map((decision) => decision.choice.title).join(' → ')}',
+                        '${_simulator.decisions.length > 3 ? '最近选择' : '此前选择'}：'
+                        '${recentDecisions.map((decision) => decision.choice.title).join(' → ')}',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ],
@@ -94,30 +105,53 @@ class _LifeModeScreenState extends State<LifeModeScreen> {
 }
 
 class _StageProgress extends StatelessWidget {
-  const _StageProgress({required this.current});
+  const _StageProgress({
+    required this.current,
+    required this.total,
+    required this.density,
+  });
 
   final int current;
+  final int total;
+  final String density;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (var index = 0; index < LifeSimulator.stages.length; index++) ...[
-          Expanded(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              height: 5,
-              decoration: BoxDecoration(
-                color: index <= current
-                    ? const Color(0xFF2E5D9F)
-                    : AppColors.line,
-                borderRadius: BorderRadius.circular(99),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '$density · 第 ${current + 1} / $total 个节点',
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
+            Text(
+              '${((current + 1) / total * 100).round()}%',
+              style: const TextStyle(
+                color: AppColors.muted,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(99),
+          child: LinearProgressIndicator(
+            value: (current + 1) / total,
+            minHeight: 6,
+            backgroundColor: AppColors.line,
+            color: const Color(0xFF2E5D9F),
           ),
-          if (index != LifeSimulator.stages.length - 1)
-            const SizedBox(width: 6),
-        ],
+        ),
       ],
     );
   }
@@ -206,7 +240,10 @@ class _CompletionPanel extends StatelessWidget {
       children: [
         const SectionLabel('Career complete'),
         const SizedBox(height: 10),
-        Text('五次选择，\n一段完整人生。', style: Theme.of(context).textTheme.displaySmall),
+        Text(
+          '${simulator.decisions.length} 次选择，\n一段完整人生。',
+          style: Theme.of(context).textTheme.displaySmall,
+        ),
         const SizedBox(height: 20),
         Card(
           color: AppColors.navy,

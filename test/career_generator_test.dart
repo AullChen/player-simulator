@@ -84,16 +84,81 @@ void main() {
         position: '中锋',
         random: Random(7),
       );
-      for (var index = 0; index < LifeSimulator.stages.length; index++) {
+      for (var index = 0; index < simulator.stages.length; index++) {
         simulator.choose(index, 0);
       }
 
       final player = simulator.finish(name: '测试前锋');
 
       expect(player.name, '测试前锋');
-      expect(player.career, hasLength(LifeSimulator.stages.length));
+      expect(player.career, hasLength(simulator.stages.length));
       expect(player.peakRating, greaterThan(player.initialRating));
       expect(player.stats.goals, greaterThan(0));
+    });
+
+    test('offers 5, 8, 11 and 22-node career densities', () {
+      final expectedCounts = {
+        CareerDecisionDensity.milestones: 5,
+        CareerDecisionDensity.everyThreeYears: 8,
+        CareerDecisionDensity.everyTwoYears: 11,
+        CareerDecisionDensity.everyYear: 22,
+      };
+
+      for (final entry in expectedCounts.entries) {
+        final simulator = LifeSimulator(
+          nationality: '中国',
+          position: '中前卫',
+          density: entry.key,
+        );
+
+        expect(simulator.stages, hasLength(entry.value));
+        expect(simulator.stages.first.age, 15);
+        expect(simulator.stages.last.age, lessThanOrEqualTo(36));
+      }
+    });
+
+    test('normalizes outcomes so denser modes do not grant extra ratings', () {
+      final profiles = <CareerDecisionDensity, int>{};
+
+      for (final density in CareerDecisionDensity.values) {
+        final simulator = LifeSimulator(
+          nationality: '中国',
+          position: '中锋',
+          density: density,
+          random: Random(42),
+        );
+        for (var index = 0; index < simulator.stages.length; index++) {
+          simulator.choose(index, 0);
+        }
+        profiles[density] = simulator.finish().peakRating;
+      }
+
+      expect(profiles.values.toSet(), hasLength(1));
+    });
+
+    test('turns detailed choices into structured career records', () {
+      final simulator = LifeSimulator(
+        nationality: '中国',
+        position: '中锋',
+        density: CareerDecisionDensity.everyYear,
+        random: Random(9),
+      );
+      for (var index = 0; index < simulator.stages.length; index++) {
+        simulator.choose(index, index % 3);
+      }
+
+      final player = simulator.finish();
+
+      expect(player.career, hasLength(22));
+      expect(player.marketValueHistory, isNotEmpty);
+      expect(player.stats.transferCount, player.transferHistory.length);
+      expect(
+        player.competitionStats.fold<int>(
+          0,
+          (sum, competition) => sum + competition.appearances,
+        ),
+        player.stats.appearances,
+      );
     });
   });
 }
