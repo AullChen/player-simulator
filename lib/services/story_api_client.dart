@@ -95,13 +95,18 @@ abstract final class DemoStoryGenerator {
     final signatureHonor = profile.stats.personalHonors.isEmpty
         ? '球迷长久的掌声'
         : profile.stats.personalHonors.last;
+    final peakValue = profile.marketValueHistory.fold<double>(
+      profile.marketValueMillions,
+      (highest, point) =>
+          point.valueMillions > highest ? point.valueMillions : highest,
+    );
 
     return '''
-${profile.name}的故事从${profile.nationality}的一块普通球场开始。作为一名${profile.preferredFoot}、身高${profile.heightCm}厘米的${profile.primaryPosition}，${profile.name}在${profile.academy}学会了用“${profile.playStyle}”理解比赛。
+${profile.name}的故事从${profile.birthPlace == '未记录' ? '${profile.nationality}的一块普通球场' : profile.birthPlace}开始。作为一名${profile.preferredFoot}、身高${profile.heightCm}厘米的${profile.primaryPosition}，${profile.name}在${profile.academy}学会了用“${profile.playStyle}”理解比赛。
 
-${profile.debutAge}岁那年，${profile.name}代表$firstClub完成职业首秀。初始能力值${profile.initialRating}并没有让所有球探立刻相信这位年轻人，但持续的选择与训练最终把巅峰能力推到${profile.peakRating}。整个职业生涯里，${profile.name}出场${profile.stats.appearances}次，贡献${profile.stats.goals}球和${profile.stats.assists}次助攻，还为国家队出战${profile.stats.nationalCaps}场。
+${profile.debutAge}岁那年，${profile.name}代表$firstClub完成职业首秀。初始能力值${profile.initialRating}并没有让所有球探立刻相信这位年轻人，但持续的选择与训练最终把巅峰能力推到${profile.peakRating}。整个职业生涯里，${profile.name}出场${profile.stats.appearances}次、累计${profile.stats.minutesPlayed}分钟，贡献${profile.stats.goals}球和${profile.stats.assists}次助攻，还为${profile.nationalTeam}出战${profile.stats.nationalCaps}场。${peakValue > 0 ? '生涯模拟身价峰值达到€${peakValue.toStringAsFixed(1)}M。' : ''}
 
-伤病记录写着“${profile.injuryRecord}”，奖杯柜里留下${profile.stats.championships.length}座重要冠军。到了${profile.retirementAge}岁，${profile.name}在$lastClub完成最后一章。比分会被新的比赛覆盖，但$signatureHonor，以及那些由每一次选择串起的时刻，留在了这段独一无二的足球人生里。
+档案里记录了${profile.stats.transferCount}次转会和${profile.injuryHistory.length}段伤停，伤病总结写着“${profile.injuryRecord}”，奖杯柜里则留下${profile.stats.championships.length}座重要冠军。到了${profile.retirementAge}岁，${profile.name}在$lastClub完成最后一章。比分会被新的比赛覆盖，但$signatureHonor，以及那些由每一次选择串起的时刻，留在了这段独一无二的足球人生里。
 ''';
   }
 }

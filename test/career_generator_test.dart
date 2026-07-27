@@ -24,6 +24,48 @@ void main() {
         expect(player.peakRating, inInclusiveRange(player.initialRating, 96));
         expect(player.stats.appearances, greaterThan(0));
         expect(player.career.length, player.stats.transferCount + 1);
+        expect(player.weightKg, inInclusiveRange(55, 110));
+        expect(player.shirtNumber, greaterThan(0));
+        expect(player.birthDate, isNot('未记录'));
+        expect(player.currentClub, player.career.last.club);
+        expect(player.transferHistory, hasLength(player.stats.transferCount));
+        expect(player.marketValueHistory, isNotEmpty);
+        expect(
+          player.competitionStats.fold<int>(
+            0,
+            (sum, competition) => sum + competition.appearances,
+          ),
+          player.stats.appearances,
+        );
+        expect(
+          player.competitionStats.fold<int>(
+            0,
+            (sum, competition) => sum + competition.goals,
+          ),
+          player.stats.goals,
+        );
+        expect(
+          player.competitionStats.fold<int>(
+            0,
+            (sum, competition) => sum + competition.assists,
+          ),
+          player.stats.assists,
+        );
+        expect(
+          player.transferHistory.fold<double>(
+            0,
+            (sum, transfer) => sum + transfer.feeMillions,
+          ),
+          closeTo(player.stats.totalTransferFeeMillions, 0.01),
+        );
+        expect(
+          player.toJson(),
+          containsPair('registration_and_contract', isA<Map<String, Object>>()),
+        );
+        expect(
+          player.toJson(),
+          containsPair('national_team', isA<Map<String, Object>>()),
+        );
       }
     });
   });

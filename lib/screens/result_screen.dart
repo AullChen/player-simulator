@@ -78,6 +78,14 @@ class _ResultScreenState extends State<ResultScreen> {
               ],
             ),
             const SizedBox(height: 18),
+            _RegistrationPanel(profile: profile),
+            const SizedBox(height: 18),
+            _PerformancePanel(profile: profile),
+            const SizedBox(height: 18),
+            _TransferPanel(profile: profile),
+            const SizedBox(height: 18),
+            _HealthAndValuePanel(profile: profile),
+            const SizedBox(height: 18),
             _CareerTimeline(profile: profile),
             const SizedBox(height: 18),
             _HonorsPanel(profile: profile),
@@ -100,6 +108,395 @@ class _ResultScreenState extends State<ResultScreen> {
       ),
     );
   }
+}
+
+class _RegistrationPanel extends StatelessWidget {
+  const _RegistrationPanel({required this.profile});
+
+  final PlayerProfile profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final citizenships = profile.citizenships.isEmpty
+        ? profile.nationality
+        : profile.citizenships.join(' / ');
+    return _DossierSection(
+      label: 'Registration & contract',
+      title: '注册、位置与合同',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = constraints.maxWidth >= 680
+              ? 4
+              : constraints.maxWidth >= 420
+              ? 2
+              : 1;
+          const gap = 12.0;
+          final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+          return Wrap(
+            spacing: gap,
+            runSpacing: 12,
+            children: [
+              _FactCell(
+                width: width,
+                label: '出生',
+                value: '${profile.birthDate}\n${profile.birthPlace}',
+              ),
+              _FactCell(width: width, label: '公民身份', value: citizenships),
+              _FactCell(
+                width: width,
+                label: '身体',
+                value:
+                    '${profile.heightCm} cm / '
+                    '${profile.weightKg == 0 ? '未记录' : '${profile.weightKg} kg'}',
+              ),
+              _FactCell(
+                width: width,
+                label: '位置与号码',
+                value:
+                    '${profile.primaryPosition} / ${profile.secondaryPosition}\n'
+                    '${profile.shirtNumber == 0 ? '号码未记录' : '${profile.shirtNumber} 号'}',
+              ),
+              _FactCell(
+                width: width,
+                label: '最后效力',
+                value: '${profile.currentClub}\n${profile.currentLeague}',
+              ),
+              _FactCell(
+                width: width,
+                label: '合同',
+                value:
+                    '加盟 ${profile.joinedClubDate}\n'
+                    '到期 ${profile.contractUntil}',
+              ),
+              _FactCell(width: width, label: '经纪人', value: profile.agent),
+              _FactCell(
+                width: width,
+                label: '国家队',
+                value:
+                    '${profile.nationalTeam}\n'
+                    '首秀 ${profile.nationalTeamDebut}',
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PerformancePanel extends StatelessWidget {
+  const _PerformancePanel({required this.profile});
+
+  final PlayerProfile profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final stats = profile.stats;
+    return _DossierSection(
+      label: 'Performance record',
+      title: '职业比赛数据',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              InfoTag('${stats.starts} 次首发'),
+              InfoTag('${stats.substituteAppearances} 次替补'),
+              InfoTag('${_formatNumber(stats.minutesPlayed)} 分钟'),
+              InfoTag('${stats.assists} 次助攻'),
+              InfoTag('${stats.yellowCards} 黄牌'),
+              InfoTag('${stats.secondYellowCards} 两黄变红'),
+              InfoTag('${stats.redCards} 直接红牌'),
+              if (stats.cleanSheets > 0) InfoTag('${stats.cleanSheets} 场零封'),
+              if (stats.penaltiesScored > 0)
+                InfoTag('${stats.penaltiesScored} 粒点球'),
+            ],
+          ),
+          if (profile.competitionStats.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                headingTextStyle: const TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+                dataTextStyle: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 13,
+                ),
+                columns: const [
+                  DataColumn(label: Text('赛事')),
+                  DataColumn(label: Text('出场'), numeric: true),
+                  DataColumn(label: Text('进球'), numeric: true),
+                  DataColumn(label: Text('助攻'), numeric: true),
+                  DataColumn(label: Text('分钟'), numeric: true),
+                ],
+                rows: [
+                  for (final competition in profile.competitionStats)
+                    DataRow(
+                      cells: [
+                        DataCell(Text(competition.competition)),
+                        DataCell(Text('${competition.appearances}')),
+                        DataCell(Text('${competition.goals}')),
+                        DataCell(Text('${competition.assists}')),
+                        DataCell(
+                          Text(_formatNumber(competition.minutesPlayed)),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TransferPanel extends StatelessWidget {
+  const _TransferPanel({required this.profile});
+
+  final PlayerProfile profile;
+
+  @override
+  Widget build(BuildContext context) {
+    return _DossierSection(
+      label: 'Transfer ledger',
+      title: '转会记录',
+      trailing:
+          '累计 €${profile.stats.totalTransferFeeMillions.toStringAsFixed(1)}M',
+      child: profile.transferHistory.isEmpty
+          ? const Text(
+              '职业生涯没有发生俱乐部转会。',
+              style: TextStyle(color: AppColors.muted),
+            )
+          : SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                headingTextStyle: const TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+                dataTextStyle: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 13,
+                ),
+                columns: const [
+                  DataColumn(label: Text('赛季')),
+                  DataColumn(label: Text('年龄'), numeric: true),
+                  DataColumn(label: Text('原俱乐部')),
+                  DataColumn(label: Text('新俱乐部')),
+                  DataColumn(label: Text('形式')),
+                  DataColumn(label: Text('费用')),
+                ],
+                rows: [
+                  for (final transfer in profile.transferHistory)
+                    DataRow(
+                      cells: [
+                        DataCell(Text(transfer.season)),
+                        DataCell(Text('${transfer.age}')),
+                        DataCell(Text(transfer.fromClub)),
+                        DataCell(Text(transfer.toClub)),
+                        DataCell(Text(transfer.type)),
+                        DataCell(
+                          Text(
+                            transfer.feeMillions == 0
+                                ? '—'
+                                : '€${transfer.feeMillions.toStringAsFixed(1)}M',
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+    );
+  }
+}
+
+class _HealthAndValuePanel extends StatelessWidget {
+  const _HealthAndValuePanel({required this.profile});
+
+  final PlayerProfile profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final peakValue = profile.marketValueHistory.fold<double>(
+      profile.marketValueMillions,
+      (highest, point) =>
+          point.valueMillions > highest ? point.valueMillions : highest,
+    );
+    return _DossierSection(
+      label: 'Availability & value',
+      title: '伤病与模拟身价',
+      trailing: '峰值 €${peakValue.toStringAsFixed(1)}M',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            profile.injuryRecord,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 12),
+          if (profile.injuryHistory.isEmpty)
+            const InfoTag('没有结构化伤停记录')
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final injury in profile.injuryHistory)
+                  InfoTag(
+                    '${injury.season} ${injury.type} · '
+                    '${injury.daysAbsent} 天 / ${injury.matchesMissed} 场',
+                  ),
+              ],
+            ),
+          if (profile.marketValueHistory.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            const Text(
+              '年龄身价轨迹（模拟值）',
+              style: TextStyle(
+                color: AppColors.ink,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final point in profile.marketValueHistory)
+                  InfoTag(
+                    '${point.age} 岁 · '
+                    '€${point.valueMillions.toStringAsFixed(1)}M',
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DossierSection extends StatelessWidget {
+  const _DossierSection({
+    required this.label,
+    required this.title,
+    required this.child,
+    this.trailing,
+  });
+
+  final String label;
+  final String title;
+  final Widget child;
+  final String? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SectionLabel(label),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                ),
+                if (trailing != null)
+                  Text(
+                    trailing!,
+                    style: const TextStyle(
+                      color: AppColors.pitchDark,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FactCell extends StatelessWidget {
+  const _FactCell({
+    required this.width,
+    required this.label,
+    required this.value,
+  });
+
+  final double width;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.mist,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 13,
+                  height: 1.45,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _formatNumber(int value) {
+  final digits = value.toString().split('');
+  final output = StringBuffer();
+  for (var index = 0; index < digits.length; index++) {
+    if (index > 0 && (digits.length - index) % 3 == 0) output.write(',');
+    output.write(digits[index]);
+  }
+  return output.toString();
 }
 
 class _DossierHeader extends StatelessWidget {
