@@ -15,7 +15,7 @@ void main() {
 
     expect(story, contains(profile.name));
     expect(story, contains(profile.nationality));
-    expect(story, contains('${profile.peakRating}'));
+    expect(story, isNot(contains('初始能力值')));
   });
 
   test('remote client posts the documented neutral contract', () async {
@@ -35,6 +35,10 @@ void main() {
     expect(story, '一段远程故事');
     expect(transport.headers!['Authorization'], 'Bearer test-token');
     expect(requestBody['task'], 'generate_football_player_story');
+    expect(requestBody['prompt_version'], StoryPromptBuilder.version);
+    expect(requestBody['prompt'], contains('严格保持时间顺序'));
+    expect(requestBody['prompt'], contains('不得向读者透露能力值'));
+    expect(requestBody['prompt'], contains('只输出故事正文'));
     expect(requestBody['player'], profile.toJson());
   });
 
