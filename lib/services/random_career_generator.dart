@@ -30,8 +30,9 @@ class RandomCareerGenerator {
     final retirementAge = 33 + _random.nextInt(8);
     final retirementYear = DateTime.now().year - _random.nextInt(5);
     final birthYear = retirementYear - retirementAge;
-    final initialRating = _initialRating(academyTier);
-    final peakRating = _peakRating(initialRating);
+    final ratings = sampleRatings(academyTier);
+    final initialRating = ratings.initial;
+    final peakRating = ratings.peak;
     final finalRating = max(52, peakRating - 8 - _random.nextInt(15));
     final transferCount = FootballCatalog.transferCounts.pick(_random);
     final heightCm = _heightFor(position);
@@ -130,26 +131,55 @@ class RandomCareerGenerator {
     );
   }
 
-  int _initialRating(int academyTier) {
+  /// Samples the initial/peak pair used by the ability wheels.
+  ///
+  /// Peak bands are game-balanced first; the legacy development curve remains
+  /// the conditional distribution within the selected band.
+  ({int initial, int peak}) sampleRatings(int academyTier) {
     final base = switch (academyTier) {
       1 => 62,
       2 => 59,
       3 => 55,
       _ => 51,
     };
-    return base + _random.nextInt(9);
-  }
-
-  int _peakRating(int initialRating) {
-    final roll = _random.nextInt(100);
-    final growth = switch (roll) {
-      < 2 => 27 + _random.nextInt(5),
-      < 12 => 20 + _random.nextInt(7),
-      < 42 => 13 + _random.nextInt(8),
-      < 82 => 7 + _random.nextInt(7),
-      _ => 2 + _random.nextInt(6),
-    };
-    return min(96, initialRating + growth);
+    final bandRoll = _random.nextDouble();
+    final band = bandRoll < 0.50
+        ? _PeakRatingBand.elite
+        : bandRoll < 0.90
+        ? _PeakRatingBand.established
+        : _PeakRatingBand.developmental;
+    final candidates = <({int initial, int peak, double weight})>[];
+    for (var initial = base; initial < base + 9; initial++) {
+      for (final growthBand in _legacyGrowthBands) {
+        for (
+          var growth = growthBand.minimum;
+          growth < growthBand.minimum + growthBand.count;
+          growth++
+        ) {
+          final peak = min(96, initial + growth);
+          if (_isInPeakBand(peak, band)) {
+            candidates.add((
+              initial: initial,
+              peak: peak,
+              weight: growthBand.weight / growthBand.count,
+            ));
+          }
+        }
+      }
+    }
+    final totalWeight = candidates.fold<double>(
+      0,
+      (sum, candidate) => sum + candidate.weight,
+    );
+    var cursor = _random.nextDouble() * totalWeight;
+    for (final candidate in candidates) {
+      cursor -= candidate.weight;
+      if (cursor <= 0) {
+        return (initial: candidate.initial, peak: candidate.peak);
+      }
+    }
+    final fallback = candidates.last;
+    return (initial: fallback.initial, peak: fallback.peak);
   }
 
   int _heightFor(String position) {
@@ -583,3 +613,20 @@ class RandomCareerGenerator {
 
   T _pick<T>(List<T> values) => values[_random.nextInt(values.length)];
 }
+
+enum _PeakRatingBand { elite, established, developmental }
+
+bool _isInPeakBand(int rating, _PeakRatingBand band) => switch (band) {
+  _PeakRatingBand.elite => rating >= 80,
+  _PeakRatingBand.established => rating >= 70 && rating < 80,
+  _PeakRatingBand.developmental => rating < 70,
+};
+
+const _legacyGrowthBands =
+    <({int minimum, int count, double weight})>[
+      (minimum: 27, count: 5, weight: 2),
+      (minimum: 20, count: 7, weight: 10),
+      (minimum: 13, count: 8, weight: 30),
+      (minimum: 7, count: 7, weight: 40),
+      (minimum: 2, count: 6, weight: 18),
+    ];

@@ -72,6 +72,23 @@ void main() {
         );
       }
     });
+
+    test('uses the game-balanced peak-rating bands', () {
+      const sampleSize = 4000;
+      var atLeast70 = 0;
+      var atLeast80 = 0;
+      final generator = RandomCareerGenerator(random: Random(8128));
+
+      for (var index = 0; index < sampleSize; index++) {
+        final academyTier = 1 + index % 4;
+        final rating = generator.sampleRatings(academyTier).peak;
+        if (rating >= 70) atLeast70 += 1;
+        if (rating >= 80) atLeast80 += 1;
+      }
+
+      expect(atLeast70 / sampleSize, closeTo(0.90, 0.025));
+      expect(atLeast80 / sampleSize, closeTo(0.50, 0.025));
+    });
   });
 
   group('LifeSimulator', () {
