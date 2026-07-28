@@ -765,7 +765,7 @@ class _StoryPanel extends StatelessWidget {
                     borderRadius: BorderRadius.circular(99),
                   ),
                   child: Text(
-                    client.usesDemo ? '本地示例' : 'API',
+                    client.usesDemo ? '本地示例' : client.providerName,
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,

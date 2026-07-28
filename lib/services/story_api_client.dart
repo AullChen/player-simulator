@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 
+import '../domain/app_settings.dart';
 import '../domain/player_profile.dart';
 import 'story_transport.dart';
 import 'story_transport_stub.dart'
@@ -11,13 +13,19 @@ class StoryApiClient {
   StoryApiClient({
     required this.endpoint,
     required this.token,
+    this.provider = StoryApiProvider.openAi,
     this.model = '',
     this.language = 'zh-CN',
     StoryTransport? transport,
   }) : transport = transport ?? transport_factory.createStoryTransport();
 
   factory StoryApiClient.fromEnvironment() {
+    const providerName = String.fromEnvironment('STORY_API_PROVIDER');
+    final provider = StoryApiProvider.values
+        .where((value) => value.name == providerName)
+        .firstOrNull;
     return StoryApiClient(
+      provider: provider ?? StoryApiProvider.openAi,
       endpoint: const String.fromEnvironment('STORY_API_URL'),
       token: const String.fromEnvironment('STORY_API_TOKEN'),
       model: const String.fromEnvironment('STORY_API_MODEL'),
@@ -26,11 +34,28 @@ class StoryApiClient {
 
   final String endpoint;
   final String token;
+  final StoryApiProvider provider;
   final String model;
   final String language;
   final StoryTransport transport;
 
-  bool get usesDemo => endpoint.trim().isEmpty;
+  bool get usesDemo => token.trim().isEmpty;
+
+  String get effectiveEndpoint {
+    final custom = endpoint.trim();
+    return custom.isEmpty ? provider.defaultEndpoint : custom;
+  }
+
+  String get effectiveModel {
+    final custom = model.trim();
+    return custom.isEmpty ? provider.defaultModel : custom;
+  }
+
+  String get providerName => switch (provider) {
+    StoryApiProvider.openAi => 'OpenAI',
+    StoryApiProvider.anthropic => 'Anthropic',
+    StoryApiProvider.deepSeek => 'DeepSeek',
+  };
 
   Future<String> generate(PlayerProfile profile) async {
     if (usesDemo) {
@@ -38,51 +63,354 @@ class StoryApiClient {
       return DemoStoryGenerator.generate(profile);
     }
 
-    final uri = Uri.tryParse(endpoint);
-    if (uri == null || !uri.hasScheme) {
-      throw const FormatException('STORY_API_URL 不是有效的网址。');
-    }
-    final response = await transport.post(
-      uri: uri,
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Accept': 'application/json',
-        if (token.isNotEmpty) 'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({
-        'task': 'generate_football_player_story',
-        'prompt_version': StoryPromptBuilder.version,
-        'language': language,
-        if (model.isNotEmpty) 'model': model,
-        'prompt': StoryPromptBuilder.build(profile, language: language),
-        'player': profile.toJson(),
-      }),
+    final request = _buildRequest(
+      StoryPromptBuilder.build(profile, language: language),
+      connectionTest: false,
     );
+    final response = await _send(request);
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw StoryApiException('故事 API 返回 ${response.statusCode}，请检查服务端日志。');
+      throw _responseException(response);
     }
 
-    final decoded = jsonDecode(response.body);
-    final story = _extractStory(decoded);
+    final story = _extractText(_decodeResponse(response.body));
     if (story == null || story.trim().isEmpty) {
-      throw const StoryApiException('响应中缺少 story、text 或 content 字段。');
+      throw StoryApiException(
+        _localized(
+          'API 响应成功，但没有找到可用的故事正文。',
+          'The API succeeded but returned no usable story text.',
+        ),
+      );
     }
     return story.trim();
   }
 
-  String? _extractStory(Object? decoded) {
+  Future<StoryConnectionResult> testConnection() async {
+    if (token.trim().isEmpty) {
+      return StoryConnectionResult.failure(
+        _localized('请输入 API 密钥后再测试。', 'Enter an API key before testing.'),
+      );
+    }
+    if (effectiveModel.isEmpty) {
+      return StoryConnectionResult.failure(
+        _localized(
+          '请输入当前账户可用的模型名称。',
+          'Enter a model available to this account.',
+        ),
+      );
+    }
+
+    final stopwatch = Stopwatch()..start();
+    try {
+      final request = _buildRequest(
+        'Reply with exactly: OK',
+        connectionTest: true,
+      );
+      final response = await _send(
+        request,
+      ).timeout(const Duration(seconds: 25));
+      stopwatch.stop();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return StoryConnectionResult.failure(
+          _responseException(response).message,
+          statusCode: response.statusCode,
+          elapsed: stopwatch.elapsed,
+        );
+      }
+      final text = _extractText(_decodeResponse(response.body));
+      if (text == null || text.trim().isEmpty) {
+        return StoryConnectionResult.failure(
+          _localized(
+            '服务已响应，但响应格式与所选供应商不匹配。',
+            'The service responded, but its response does not match the selected provider format.',
+          ),
+          statusCode: response.statusCode,
+          elapsed: stopwatch.elapsed,
+        );
+      }
+      return StoryConnectionResult.success(
+        _localized(
+          '$providerName 连接成功，模型 ${effectiveModel.trim()} 可用。',
+          '$providerName connected; model ${effectiveModel.trim()} is available.',
+        ),
+        elapsed: stopwatch.elapsed,
+      );
+    } on TimeoutException {
+      stopwatch.stop();
+      return StoryConnectionResult.failure(
+        _localized(
+          '连接测试超过 25 秒，请检查网络、地址或服务状态。',
+          'The connection test exceeded 25 seconds. Check the network, endpoint, or service status.',
+        ),
+        elapsed: stopwatch.elapsed,
+      );
+    } on Object catch (error) {
+      stopwatch.stop();
+      return StoryConnectionResult.failure(
+        _localized('连接失败：$error', 'Connection failed: $error'),
+        elapsed: stopwatch.elapsed,
+      );
+    }
+  }
+
+  _StoryApiRequest _buildRequest(
+    String prompt, {
+    required bool connectionTest,
+  }) {
+    final uri = Uri.tryParse(effectiveEndpoint);
+    if (uri == null ||
+        !uri.hasScheme ||
+        (uri.scheme != 'https' && uri.scheme != 'http')) {
+      throw StoryApiException(
+        _localized(
+          'API 地址不是有效的 HTTP 或 HTTPS 地址。',
+          'The API endpoint is not a valid HTTP or HTTPS URL.',
+        ),
+      );
+    }
+    if (effectiveModel.isEmpty) {
+      throw StoryApiException(
+        _localized(
+          '当前供应商需要填写模型名称。',
+          'A model name is required for this provider.',
+        ),
+      );
+    }
+
+    final headers = <String, String>{
+      'Content-Type': 'application/json; charset=utf-8',
+      'Accept': 'application/json',
+    };
+    late final Map<String, Object> body;
+    switch (provider) {
+      case StoryApiProvider.openAi:
+        if (token.trim().isNotEmpty) {
+          headers['Authorization'] = 'Bearer ${token.trim()}';
+        }
+        body = _openAiBody(prompt, connectionTest: connectionTest);
+      case StoryApiProvider.anthropic:
+        if (token.trim().isNotEmpty) {
+          headers['x-api-key'] = token.trim();
+        }
+        headers['anthropic-version'] = '2023-06-01';
+        body = {
+          'model': effectiveModel,
+          'max_tokens': connectionTest ? 16 : 16000,
+          'system': connectionTest
+              ? _connectionSystemInstruction
+              : _systemInstruction,
+          'messages': [
+            {'role': 'user', 'content': prompt},
+          ],
+          'stream': false,
+        };
+      case StoryApiProvider.deepSeek:
+        if (token.trim().isNotEmpty) {
+          headers['Authorization'] = 'Bearer ${token.trim()}';
+        }
+        body = {
+          ..._openAiBody(prompt, connectionTest: connectionTest),
+          'thinking': {'type': connectionTest ? 'disabled' : 'enabled'},
+          if (!connectionTest) 'reasoning_effort': 'high',
+        };
+    }
+    return _StoryApiRequest(uri: uri, headers: headers, body: body);
+  }
+
+  Map<String, Object> _openAiBody(
+    String prompt, {
+    required bool connectionTest,
+  }) {
+    return {
+      'model': effectiveModel,
+      'messages': [
+        {
+          'role': 'system',
+          'content': connectionTest
+              ? _connectionSystemInstruction
+              : _systemInstruction,
+        },
+        {'role': 'user', 'content': prompt},
+      ],
+      'stream': false,
+    };
+  }
+
+  String get _systemInstruction => language.toLowerCase().startsWith('en')
+      ? 'Write a realistic football biography using only supplied facts. Return only the requested text.'
+      : '依据提供的事实撰写真实可信的足球生涯故事，只返回请求的正文。';
+
+  String get _connectionSystemInstruction =>
+      'This is a connection test. Follow the user instruction exactly.';
+
+  Future<StoryHttpResponse> _send(_StoryApiRequest request) {
+    return transport.post(
+      uri: request.uri,
+      headers: request.headers,
+      body: jsonEncode(request.body),
+    );
+  }
+
+  Object? _decodeResponse(String body) {
+    try {
+      return jsonDecode(body);
+    } on FormatException {
+      throw StoryApiException(
+        _localized('API 返回的不是有效 JSON。', 'The API did not return valid JSON.'),
+      );
+    }
+  }
+
+  String? _extractText(Object? decoded) {
     if (decoded is String) return decoded;
     if (decoded is! Map<String, dynamic>) return null;
+
+    if (provider == StoryApiProvider.anthropic) {
+      final content = decoded['content'];
+      if (content is List) {
+        final text = content
+            .whereType<Map>()
+            .where((block) => block['type'] == 'text')
+            .map((block) => block['text'])
+            .whereType<String>()
+            .join('\n');
+        if (text.isNotEmpty) return text;
+      }
+    } else {
+      final choices = decoded['choices'];
+      if (choices is List && choices.isNotEmpty) {
+        final choice = choices.first;
+        if (choice is Map) {
+          final message = choice['message'];
+          if (message is Map) {
+            final content = message['content'];
+            if (content is String) return content;
+            if (content is List) {
+              final text = content
+                  .whereType<Map>()
+                  .map((part) => part['text'])
+                  .whereType<String>()
+                  .join('\n');
+              if (text.isNotEmpty) return text;
+            }
+          }
+        }
+      }
+    }
+
+    return _extractLegacyText(decoded);
+  }
+
+  String? _extractLegacyText(Object? decoded) {
+    if (decoded is String) return decoded;
+    if (decoded is! Map) return null;
     for (final key in const ['story', 'text', 'content']) {
       final value = decoded[key];
       if (value is String) return value;
     }
     final data = decoded['data'];
-    if (data is Map<String, dynamic>) {
-      return _extractStory(data);
+    return _extractLegacyText(data);
+  }
+
+  StoryApiException _responseException(StoryHttpResponse response) {
+    final detail = _extractErrorMessage(response.body);
+    final advice = switch (response.statusCode) {
+      400 => _localized(
+        '请求格式或模型参数无效。',
+        'The request or model parameters are invalid.',
+      ),
+      401 => _localized('API 密钥无效或已失效。', 'The API key is invalid or expired.'),
+      403 => _localized(
+        '密钥没有访问该模型的权限。',
+        'The key does not have access to this model.',
+      ),
+      404 => _localized(
+        'API 地址或模型名称不存在。',
+        'The API endpoint or model name was not found.',
+      ),
+      429 => _localized(
+        '请求受到速率或余额限制。',
+        'The request was rate-limited or quota-limited.',
+      ),
+      >= 500 => _localized(
+        '供应商服务暂时不可用。',
+        'The provider service is temporarily unavailable.',
+      ),
+      _ => _localized('请检查供应商设置。', 'Check the provider settings.'),
+    };
+    return StoryApiException(
+      '$providerName HTTP ${response.statusCode}：$advice'
+      '${detail == null ? '' : ' $detail'}',
+    );
+  }
+
+  String? _extractErrorMessage(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is! Map) return null;
+      final error = decoded['error'];
+      if (error is Map && error['message'] is String) {
+        return '${error['message']}';
+      }
+      if (error is String) return error;
+      if (decoded['message'] is String) return '${decoded['message']}';
+    } on FormatException {
+      return null;
     }
     return null;
   }
+
+  String _localized(String zh, String en) =>
+      language.toLowerCase().startsWith('en') ? en : zh;
+}
+
+class StoryConnectionResult {
+  const StoryConnectionResult._({
+    required this.isSuccess,
+    required this.message,
+    this.statusCode,
+    this.elapsed = Duration.zero,
+  });
+
+  factory StoryConnectionResult.success(
+    String message, {
+    required Duration elapsed,
+  }) {
+    return StoryConnectionResult._(
+      isSuccess: true,
+      message: message,
+      elapsed: elapsed,
+    );
+  }
+
+  factory StoryConnectionResult.failure(
+    String message, {
+    int? statusCode,
+    Duration elapsed = Duration.zero,
+  }) {
+    return StoryConnectionResult._(
+      isSuccess: false,
+      message: message,
+      statusCode: statusCode,
+      elapsed: elapsed,
+    );
+  }
+
+  final bool isSuccess;
+  final String message;
+  final int? statusCode;
+  final Duration elapsed;
+}
+
+class _StoryApiRequest {
+  const _StoryApiRequest({
+    required this.uri,
+    required this.headers,
+    required this.body,
+  });
+
+  final Uri uri;
+  final Map<String, String> headers;
+  final Map<String, Object> body;
 }
 
 abstract final class StoryPromptBuilder {
@@ -90,6 +418,9 @@ abstract final class StoryPromptBuilder {
 
   static String build(PlayerProfile profile, {String language = 'zh-CN'}) {
     final isEnglish = language.toLowerCase().startsWith('en');
+    final canonicalPlayerJson = const JsonEncoder.withIndent(
+      '  ',
+    ).convert(profile.toJson());
     final timeline = profile.career.isEmpty
         ? (isEnglish ? 'No club timeline supplied.' : '未提供俱乐部时间线。')
         : profile.career
@@ -123,6 +454,7 @@ abstract final class StoryPromptBuilder {
     if (isEnglish) {
       return '''
 You are writing a long-form football biography, not a database summary or a motivational fable.
+Prompt contract: $version.
 
 FACTUAL RULES
 - Treat the attached `player` object and the fact sheet below as the only canon.
@@ -158,11 +490,15 @@ $transfers
 
 INJURIES
 $injuries
+
+COMPLETE CANONICAL PLAYER JSON
+$canonicalPlayerJson
 ''';
     }
 
     return '''
 你是一名长期跟队、熟悉训练场和更衣室语境的足球传记作者。你的任务不是复述数据库，也不是写励志模板，而是依据档案写一篇可信、可感的球员生涯特写。
+提示词协议：$version。
 
 事实边界
 - 随请求附带的 `player` 对象和下方事实表是唯一事实来源。
@@ -198,6 +534,9 @@ $transfers
 
 伤病
 $injuries
+
+完整球员档案 JSON（同样属于唯一事实来源）
+$canonicalPlayerJson
 ''';
   }
 }

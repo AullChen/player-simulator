@@ -25,6 +25,7 @@ void main() {
     await controller.updateSettings(
       const AppSettings(
         language: AppLanguage.en,
+        apiProvider: StoryApiProvider.deepSeek,
         apiEndpoint: 'https://story.example.test/generate',
         apiToken: 'local-token',
         apiModel: 'custom-model',
@@ -37,10 +38,30 @@ void main() {
 
     expect(reloaded.settings.language, AppLanguage.en);
     expect(reloaded.settings.autoSavePlayers, isTrue);
+    expect(client.provider, StoryApiProvider.deepSeek);
     expect(client.endpoint, 'https://story.example.test/generate');
     expect(client.token, 'local-token');
     expect(client.model, 'custom-model');
     expect(client.language, 'en');
+  });
+
+  test('legacy API settings infer the provider from the endpoint', () {
+    final anthropic = AppSettings.fromJson({
+      'api_endpoint': 'https://api.anthropic.com/v1/messages',
+      'api_token': 'legacy-token',
+      'api_model': 'legacy-model',
+    });
+    final deepSeek = AppSettings.fromJson({
+      'api_endpoint': 'https://api.deepseek.com/chat/completions',
+    });
+    final custom = AppSettings.fromJson({
+      'api_endpoint': 'https://gateway.example.test/v1/chat/completions',
+    });
+
+    expect(anthropic.apiProvider, StoryApiProvider.anthropic);
+    expect(deepSeek.apiProvider, StoryApiProvider.deepSeek);
+    expect(custom.apiProvider, StoryApiProvider.openAi);
+    expect(anthropic.toJson()['api_provider'], 'anthropic');
   });
 
   test('saved dossiers persist without duplicates', () async {

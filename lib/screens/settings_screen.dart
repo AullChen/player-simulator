@@ -2,13 +2,17 @@ import 'package:flutter/material.dart';
 
 import '../domain/app_settings.dart';
 import '../l10n/app_localizations.dart';
+import '../services/story_api_client.dart';
+import '../services/story_transport.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/app_scope.dart';
 import 'saved_players_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, this.storyTransport});
+
+  final StoryTransport? storyTransport;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -21,9 +25,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _modelController = TextEditingController();
   var _initialized = false;
   var _saving = false;
+  var _testing = false;
   var _obscureToken = true;
   var _autoSave = false;
   var _language = AppLanguage.zhHans;
+  var _provider = StoryApiProvider.openAi;
+  StoryConnectionResult? _connectionResult;
 
   @override
   void didChangeDependencies() {
@@ -32,7 +39,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final settings = AppScope.of(context).settings;
     _endpointController.text = settings.apiEndpoint;
     _tokenController.text = settings.apiToken;
-    _modelController.text = settings.apiModel;
+    _provider = settings.apiProvider;
+    _modelController.text = settings.apiModel.trim().isEmpty
+        ? settings.apiProvider.defaultModel
+        : settings.apiModel;
     _autoSave = settings.autoSavePlayers;
     _language = settings.language;
     _initialized = true;
@@ -68,6 +78,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await controller.updateSettings(
       AppSettings(
         language: _language,
+        apiProvider: _provider,
         apiEndpoint: _endpointController.text.trim(),
         apiToken: _tokenController.text.trim(),
         apiModel: _modelController.text.trim(),
@@ -81,9 +92,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  void _providerChanged(StoryApiProvider provider) {
+    final previous = _provider;
+    final endpoint = _endpointController.text.trim();
+    final model = _modelController.text.trim();
+    setState(() {
+      _provider = provider;
+      if (endpoint == previous.defaultEndpoint) {
+        _endpointController.clear();
+      }
+      if (model.isEmpty || model == previous.defaultModel) {
+        _modelController.text = provider.defaultModel;
+      }
+      _connectionResult = null;
+    });
+  }
+
+  void _configurationChanged() {
+    setState(() => _connectionResult = null);
+  }
+
+  Future<void> _testConnection() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    setState(() {
+      _testing = true;
+      _connectionResult = null;
+    });
+    final result = await StoryApiClient(
+      provider: _provider,
+      endpoint: _endpointController.text.trim(),
+      token: _tokenController.text.trim(),
+      model: _modelController.text.trim(),
+      language: _language == AppLanguage.en ? 'en' : 'zh-CN',
+      transport: widget.storyTransport,
+    ).testConnection();
+    if (!mounted) return;
+    setState(() {
+      _testing = false;
+      _connectionResult = result;
+    });
+  }
+
+  String _providerDescription(StoryApiProvider provider) => switch (provider) {
+    StoryApiProvider.openAi => context.tr(
+      'OpenAI Chat Completions 格式',
+      'OpenAI Chat Completions format',
+    ),
+    StoryApiProvider.anthropic => context.tr(
+      'Anthropic Messages API 格式',
+      'Anthropic Messages API format',
+    ),
+    StoryApiProvider.deepSeek => context.tr(
+      'DeepSeek Chat Completions 与思考模式',
+      'DeepSeek Chat Completions with thinking mode',
+    ),
+  };
+
   @override
   Widget build(BuildContext context) {
     final controller = AppScope.of(context);
+    final hasApiKey = _tokenController.text.trim().isNotEmpty;
     return AppScaffold(
       title: context.tr('设置', 'Settings'),
       child: ContentWidth(
@@ -135,27 +203,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _SettingsSection(
                 icon: Icons.hub_outlined,
                 title: context.tr('故事 API', 'Story API'),
-                status: _endpointController.text.trim().isEmpty
+                status: !hasApiKey
                     ? context.tr('本地示例', 'Local demo')
-                    : context.tr('远程服务', 'Remote service'),
+                    : _connectionResult?.isSuccess == true
+                    ? context.tr('连接正常', 'Connected')
+                    : context.tr('等待测试', 'Not tested'),
                 child: Column(
                   children: [
+                    DropdownButtonFormField<StoryApiProvider>(
+                      value: _provider,
+                      decoration: InputDecoration(
+                        labelText: context.tr('API 供应商', 'API provider'),
+                        helperText: _providerDescription(_provider),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: StoryApiProvider.openAi,
+                          child: Text('OpenAI'),
+                        ),
+                        DropdownMenuItem(
+                          value: StoryApiProvider.anthropic,
+                          child: Text('Anthropic'),
+                        ),
+                        DropdownMenuItem(
+                          value: StoryApiProvider.deepSeek,
+                          child: Text('DeepSeek'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) _providerChanged(value);
+                      },
+                    ),
+                    const SizedBox(height: 12),
                     TextFormField(
                       controller: _endpointController,
                       decoration: InputDecoration(
-                        labelText: context.tr('API 地址', 'API endpoint'),
-                        hintText: 'https://api.example.com/player-story',
+                        labelText: context.tr(
+                          '自定义 API 地址（可选）',
+                          'Custom API endpoint (optional)',
+                        ),
+                        hintText: _provider.defaultEndpoint,
+                        helperText: context.tr(
+                          '留空时使用当前供应商的官方地址。',
+                          'Leave blank to use the provider’s official endpoint.',
+                        ),
                       ),
                       keyboardType: TextInputType.url,
                       validator: _validateEndpoint,
-                      onChanged: (_) => setState(() {}),
+                      onChanged: (_) => _configurationChanged(),
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _tokenController,
                       obscureText: _obscureToken,
                       decoration: InputDecoration(
-                        labelText: context.tr('访问令牌', 'Access token'),
+                        labelText: context.tr('API 密钥', 'API key'),
                         suffixIcon: IconButton(
                           onPressed: () =>
                               setState(() => _obscureToken = !_obscureToken),
@@ -166,18 +268,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
                       ),
+                      onChanged: (_) => _configurationChanged(),
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _modelController,
                       decoration: InputDecoration(
-                        labelText: context.tr(
-                          '模型名（可选）',
-                          'Model name (optional)',
+                        labelText: context.tr('模型名称', 'Model name'),
+                        hintText: _provider == StoryApiProvider.openAi
+                            ? context.tr(
+                                '填写当前账户可用的 OpenAI 模型',
+                                'Enter an OpenAI model available to your account',
+                              )
+                            : _provider.defaultModel,
+                      ),
+                      onChanged: (_) => _configurationChanged(),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _testing ? null : _testConnection,
+                        icon: _testing
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.cable_outlined),
+                        label: Text(
+                          _testing
+                              ? context.tr('正在测试…', 'Testing…')
+                              : context.tr('测试连接', 'Test connection'),
                         ),
-                        hintText: 'your-model-id',
                       ),
                     ),
+                    if (_connectionResult != null) ...[
+                      const SizedBox(height: 12),
+                      _ConnectionResultCard(result: _connectionResult!),
+                    ],
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.all(14),
@@ -197,8 +327,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           Expanded(
                             child: Text(
                               context.tr(
-                                '令牌会以普通本地偏好保存，不是安全密钥库。正式发布时请使用自有后端代理。',
-                                'The token is stored as a normal local preference, not in a secure vault. Use your own backend proxy in production.',
+                                '测试会发送一次极短请求，可能产生少量费用。密钥会以普通本地偏好保存，并非安全密钥库；正式发布时请使用自有后端代理。',
+                                'The test sends one very short request and may incur a small charge. The key is stored as a normal local preference, not a secure vault; use your own backend proxy in production.',
                               ),
                               style: const TextStyle(
                                 color: Color(0xFF76551F),
@@ -266,6 +396,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ConnectionResultCard extends StatelessWidget {
+  const _ConnectionResultCard({required this.result});
+
+  final StoryConnectionResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final success = result.isSuccess;
+    final color = success ? AppColors.pitchDark : AppColors.danger;
+    final background = success
+        ? const Color(0xFFE6F5EF)
+        : const Color(0xFFFFECE8);
+    final milliseconds = result.elapsed.inMilliseconds;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            success ? Icons.check_circle_outline : Icons.error_outline,
+            color: color,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '${result.message}${milliseconds > 0 ? ' · $milliseconds ms' : ''}',
+              style: TextStyle(color: color, fontSize: 12, height: 1.5),
+            ),
+          ),
+        ],
       ),
     );
   }

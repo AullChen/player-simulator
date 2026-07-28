@@ -6,7 +6,11 @@ import 'package:player_simulator/screens/dream_mode_screen.dart';
 import 'package:player_simulator/screens/life_mode_screen.dart';
 import 'package:player_simulator/screens/life_setup_screen.dart';
 import 'package:player_simulator/screens/random_mode_screen.dart';
+import 'package:player_simulator/screens/settings_screen.dart';
+import 'package:player_simulator/services/app_controller.dart';
 import 'package:player_simulator/services/app_storage.dart';
+import 'package:player_simulator/services/story_transport.dart';
+import 'package:player_simulator/widgets/app_scope.dart';
 
 void main() {
   testWidgets('home screen exposes all three simulation modes', (tester) async {
@@ -38,6 +42,37 @@ void main() {
 
     expect(find.text('Settings'), findsOneWidget);
     expect(find.text('Settings saved'), findsOneWidget);
+  });
+
+  testWidgets('settings page tests the current API configuration', (
+    tester,
+  ) async {
+    final controller = AppController(MemoryAppStorage());
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    await tester.pumpWidget(
+      AppScope(
+        controller: controller,
+        child: const MaterialApp(
+          home: SettingsScreen(storyTransport: _SuccessfulStoryTransport()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(1), 'test-api-key');
+    await tester.enterText(fields.at(2), 'test-model');
+    await tester.scrollUntilVisible(
+      find.text('测试连接'),
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('测试连接'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('OpenAI 连接成功'), findsOneWidget);
+    expect(find.textContaining('模型 test-model 可用'), findsOneWidget);
   });
 
   testWidgets('life setup lets the user select yearly decisions', (
@@ -140,7 +175,8 @@ void main() {
     await tester.tap(find.text('保存并返回抽取结果'));
     await tester.pumpAndSettle();
 
-    expect(find.text('修改已保存，依赖字段和时间线已重新校验。'), findsOneWidget);
+    expect(find.text('校正抽取档案'), findsNothing);
+    expect(find.text('最近抽取'), findsOneWidget);
   });
 
   testWidgets('life mode explains context without exposing hidden scores', (
@@ -158,4 +194,20 @@ void main() {
     expect(find.textContaining('青训体系里度过了数年'), findsOneWidget);
     expect(find.textContaining('你的选择：'), findsWidgets);
   });
+}
+
+class _SuccessfulStoryTransport implements StoryTransport {
+  const _SuccessfulStoryTransport();
+
+  @override
+  Future<StoryHttpResponse> post({
+    required Uri uri,
+    required Map<String, String> headers,
+    required String body,
+  }) async {
+    return const StoryHttpResponse(
+      200,
+      '{"choices":[{"message":{"content":"OK"}}]}',
+    );
+  }
 }

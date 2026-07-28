@@ -62,16 +62,17 @@ class AppController extends ChangeNotifier {
 
   StoryApiClient createStoryClient() {
     final environment = StoryApiClient.fromEnvironment();
+    final hasStoredApi =
+        settings.apiEndpoint.trim().isNotEmpty ||
+        settings.apiToken.trim().isNotEmpty ||
+        settings.apiModel.trim().isNotEmpty;
     return StoryApiClient(
-      endpoint: settings.apiEndpoint.trim().isEmpty
-          ? environment.endpoint
-          : settings.apiEndpoint.trim(),
-      token: settings.apiEndpoint.trim().isEmpty
-          ? environment.token
-          : settings.apiToken.trim(),
-      model: settings.apiModel.trim().isEmpty
-          ? environment.model
-          : settings.apiModel.trim(),
+      provider: hasStoredApi ? settings.apiProvider : environment.provider,
+      endpoint: hasStoredApi
+          ? settings.apiEndpoint.trim()
+          : environment.endpoint,
+      token: hasStoredApi ? settings.apiToken.trim() : environment.token,
+      model: hasStoredApi ? settings.apiModel.trim() : environment.model,
       language: settings.language == AppLanguage.en ? 'en' : 'zh-CN',
     );
   }
