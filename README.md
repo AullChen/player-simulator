@@ -36,7 +36,8 @@
 ### 设置与本地档案
 
 - 设置页可随时切换简体中文或英文。
-- 可配置故事 API 地址、访问令牌、可选模型名和自动保存。
+- 可选择 OpenAI、Anthropic 或 DeepSeek 协议，配置 API 密钥、模型和可选自定义地址。
+- “测试连接”会发送一次极短请求，并明确反馈鉴权、权限、模型、限流和服务端错误。
 - 球员档案保存在本地，支持查看、去重保存和删除；当前最多保存 50 份。
 - 访问令牌与档案通过 `shared_preferences` 保存在设备普通应用存储中，不等同于安全密钥库。
 
@@ -57,39 +58,41 @@ flutter run
 
 ```powershell
 flutter run `
-  --dart-define=STORY_API_URL=https://api.example.com/player-story `
-  --dart-define=STORY_API_TOKEN=your-token
+  --dart-define=STORY_API_PROVIDER=deepSeek `
+  --dart-define=STORY_API_TOKEN=your-token `
+  --dart-define=STORY_API_MODEL=deepseek-v4-pro
 ```
 
-请求方式为 `POST`，请求体结构如下：
+`STORY_API_PROVIDER` 可使用 `openAi`、`anthropic` 或 `deepSeek`。未传
+`STORY_API_URL` 时使用供应商官方地址；设置页仍允许填写 OpenAI/Anthropic
+兼容网关。没有 API 密钥时继续使用本地示例，不会发送远程请求。
+
+| 协议 | 默认地址 | 鉴权 | 默认模型 |
+| --- | --- | --- | --- |
+| OpenAI | `https://api.openai.com/v1/chat/completions` | `Authorization: Bearer` | 不猜测，用户填写账户可用模型 |
+| Anthropic | `https://api.anthropic.com/v1/messages` | `x-api-key` + `anthropic-version: 2023-06-01` | `claude-opus-4-8` |
+| DeepSeek | `https://api.deepseek.com/chat/completions` | `Authorization: Bearer` | `deepseek-v4-pro` |
+
+OpenAI 使用 Chat Completions 的 `model`、`messages` 和 `stream: false`，
+并从 `choices[0].message.content` 读取故事。Anthropic 使用 Messages API，
+设置 `max_tokens`、顶层 `system` 和 `messages`，再合并响应中的文本内容块。
+DeepSeek 使用 OpenAI Chat Completions 结构，并在正式生成时额外发送：
 
 ```json
 {
-  "task": "generate_football_player_story",
-  "prompt_version": "football-biography-v2",
-  "language": "zh-CN",
-  "model": "可选的用户模型名",
-  "prompt": "包含事实边界、时间线、写作结构与禁用表达的完整提示词",
-  "player": {
-    "mode": "random",
-    "personal_information": {},
-    "registration_and_contract": {},
-    "national_team": {},
-    "ability": {},
-    "career_information": {}
-  }
+  "thinking": {"type": "enabled"},
+  "reasoning_effort": "high",
+  "stream": false
 }
 ```
 
-服务端响应可使用以下任一结构：
+连接测试会要求供应商只回复 `OK`。为缩短时间和减少费用，DeepSeek 连接测试使用
+`thinking: {"type": "disabled"}`；故事生成才启用高强度思考。测试结果会显示耗时，
+并区分 HTTP 400、401、403、404、429 和 5xx。标准供应商响应之外，客户端仍保留
+对旧版顶层 `story`、`text`、`content` 和 `data.story` 的读取兼容。
 
-```json
-{"story": "生成的故事"}
-```
-
-也兼容顶层 `text`、`content`，或 `data.story`。非 2xx 响应和缺少故事字段都会在结果页显示可重试错误。
-
-`football-biography-v2` 要求服务端把 `player` 当作唯一事实来源，严格保持年龄和赛季顺序，
+`football-biography-v2` 会把完整球员档案 JSON 嵌入用户消息，并要求模型将其作为唯一事实来源，
+严格保持年龄和赛季顺序，
 禁止虚构具名俱乐部、冠军、伤病或引语，并禁止把能力值、人物模型和游戏机制写进故事。
 中文目标为约 1800–2600 字的足球杂志特写，而不是逐字段报表。
 
