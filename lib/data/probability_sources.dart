@@ -19,7 +19,7 @@ class ProbabilitySource {
 }
 
 abstract final class ProbabilitySources {
-  static const dataVersion = '2026.07-public-v3';
+  static const dataVersion = '2026.07-public-v4';
 
   static const sources = <ProbabilitySource>[
     ProbabilitySource(
@@ -90,6 +90,36 @@ abstract final class ProbabilitySources {
           'https://www.transfermarkt.com/jumplist/leistungsdaten/spieler/398184',
       appliedTo: ['出场', '进球', '助攻', '纪律', '累计分钟'],
     ),
+    ProbabilitySource(
+      id: 'koch-retirement-reasons-2021',
+      title:
+          'Health-related issues and injury as the cause of retirement from professional soccer',
+      publisher: 'Knee Surgery, Sports Traumatology, Arthroscopy',
+      publishedYear: 2021,
+      scope: '116 名已退役德国男子职业球员的回顾性样本；用于校准退役原因的相对权重，不代表全球精确发生率',
+      url: 'https://pubmed.ncbi.nlm.nih.gov/34370085/',
+      appliedTo: ['随机长度模式的伤病、高龄与其他退役原因权重'],
+    ),
+    ProbabilitySource(
+      id: 'fifpro-global-employment-report-2016',
+      title: 'FIFPRO Global Employment Report 2016',
+      publisher: 'FIFPRO',
+      publishedYear: 2016,
+      scope: '覆盖 54 个国家、87 个联赛、约 14,000 名球员；职业合同平均长度不足两年',
+      url:
+          'https://www.fifpro.org/en/articles/2019/11/mens-football-global-report-2016',
+      appliedTo: ['随机长度模式的合同脆弱性与无合适去处剧情'],
+    ),
+    ProbabilitySource(
+      id: 'football-return-to-play-reinjury-2025',
+      title:
+          'Injury Risk Following Return-to-Play From an Injury in Professional Football',
+      publisher: 'Orthopaedic Journal of Sports Medicine',
+      publishedYear: 2025,
+      scope: '职业足球伤愈复出后的非接触伤病风险研究',
+      url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC11787231/',
+      appliedTo: ['既往伤病和冒险复出对后续退役风险的动态修正'],
+    ),
   ];
 
   static const professionalPlayers2023 = 128694;
@@ -99,4 +129,12 @@ abstract final class ProbabilitySources {
   static const januaryInternationalTransfers2025 = 5863;
   static const averageInternationalTransferAge2025 = 24.9;
   static const transfersWithFeePercent2025 = 17.7;
+
+  // Conditional shares from Koch et al. They calibrate the mix of retirement
+  // story causes after a retirement roll succeeds, not a global annual hazard.
+  static const retirementAcuteInjuryCausePercent = 38.8;
+  static const retirementChronicInjuryCausePercent = 24.1;
+  static const retirementAgeCausePercent = 26.7;
+  static const retirementAlternativeCareerCausePercent = 6.9;
+  static const retirementPersonalCausePercent = 3.4;
 }

@@ -287,6 +287,32 @@ class _ChoiceCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8F5EF),
+                          borderRadius: BorderRadius.circular(99),
+                          border: Border.all(
+                            color: AppColors.pitchDark.withValues(alpha: 0.24),
+                          ),
+                        ),
+                        child: Text(
+                          context.tr(
+                            choice.actionLabelZh,
+                            choice.actionLabelEn,
+                          ),
+                          style: const TextStyle(
+                            color: AppColors.pitchDark,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       Text(
                         context.tr(choice.titleZh, choice.titleEn),
                         style: const TextStyle(
@@ -296,17 +322,38 @@ class _ChoiceCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        context.tr(choice.backgroundZh, choice.backgroundEn),
+                        '${context.tr('背景：', 'Context: ')}'
+                        '${context.tr(choice.backgroundZh, choice.backgroundEn)}',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 9),
                       Text(
-                        '${context.tr('你的选择：', 'Your response: ')}'
+                        '${context.tr('你要做：', 'Your action: ')}'
                         '${context.tr(choice.descriptionZh, choice.descriptionEn)}',
                         style: const TextStyle(
                           color: AppColors.ink,
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF4F7FA),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.line),
+                        ),
+                        child: Text(
+                          '${context.tr('确认结果：', 'Confirmed outcome: ')}'
+                          '${context.tr(choice.outcomeZh, choice.outcomeEn)}',
+                          style: const TextStyle(
+                            color: Color(0xFF29445F),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            height: 1.45,
+                          ),
                         ),
                       ),
                     ],
@@ -347,6 +394,46 @@ class _CompletionPanel extends StatelessWidget {
           style: Theme.of(context).textTheme.displaySmall,
         ),
         const SizedBox(height: 20),
+        if (simulator.retirementOutcome case final outcome?) ...[
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF4DF),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE5BE6A)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.flag_outlined, color: Color(0xFF8A5A00)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        context.tr(outcome.titleZh, outcome.titleEn),
+                        style: const TextStyle(
+                          color: Color(0xFF6D4800),
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        context.tr(outcome.contextZh, outcome.contextEn),
+                        style: const TextStyle(
+                          color: Color(0xFF6D531F),
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+        ],
         Card(
           color: AppColors.navy,
           child: Padding(

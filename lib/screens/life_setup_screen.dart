@@ -150,8 +150,12 @@ class _LifeSetupScreenState extends State<LifeSetupScreen> {
                       icon: const Icon(Icons.arrow_forward),
                       label: Text(
                         context.tr(
-                          '开始 ${_density.nodeCount} 个生涯选择',
-                          'Start ${_density.nodeCount} career choices',
+                          _density == CareerDecisionDensity.random
+                              ? '开始随机长度生涯'
+                              : '开始 ${_density.nodeCount} 个生涯选择',
+                          _density == CareerDecisionDensity.random
+                              ? 'Start a random-length career'
+                              : 'Start ${_density.nodeCount} career choices',
                         ),
                       ),
                     ),
@@ -259,8 +263,8 @@ class _DensityCard extends StatelessWidget {
                         ),
                         Text(
                           context.tr(
-                            '${density.nodeCount} 节点 · ${density.estimatedTime}',
-                            '${density.nodeCount} nodes · ${density.estimatedTimeEn}',
+                            '${density.nodeSummary} · ${density.estimatedTime}',
+                            '${density.nodeSummaryEn} · ${density.estimatedTimeEn}',
                           ),
                           style: const TextStyle(
                             color: AppColors.pitchDark,

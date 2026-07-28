@@ -30,6 +30,67 @@ class CareerChapter {
   };
 }
 
+class CareerYearSnapshot {
+  const CareerYearSnapshot({
+    required this.season,
+    required this.age,
+    required this.club,
+    required this.squadRole,
+    required this.overallRating,
+    required this.technical,
+    required this.physical,
+    required this.mental,
+    required this.fitness,
+    required this.morale,
+    required this.reputation,
+    required this.keyEvent,
+  });
+
+  final String season;
+  final int age;
+  final String club;
+  final String squadRole;
+  final int overallRating;
+  final int technical;
+  final int physical;
+  final int mental;
+  final int fitness;
+  final int morale;
+  final int reputation;
+  final String keyEvent;
+
+  factory CareerYearSnapshot.fromJson(Map<String, dynamic> json) =>
+      CareerYearSnapshot(
+        season: _string(json['season']),
+        age: _int(json['age']),
+        club: _string(json['club']),
+        squadRole: _string(json['squad_role']),
+        overallRating: _int(json['overall_rating']),
+        technical: _int(json['technical']),
+        physical: _int(json['physical']),
+        mental: _int(json['mental']),
+        fitness: _int(json['fitness']),
+        morale: _int(json['morale']),
+        reputation: _int(json['reputation']),
+        keyEvent: _string(json['key_event']),
+      );
+
+  Map<String, Object> toJson() => {
+    'season': season,
+    'age': age,
+    'club': club,
+    'squad_role': squadRole,
+    'overall_rating': overallRating,
+    'technical': technical,
+    'physical': physical,
+    'mental': mental,
+    'fitness': fitness,
+    'morale': morale,
+    'reputation': reputation,
+    'key_event': keyEvent,
+  };
+}
+
 class TransferRecord {
   const TransferRecord({
     required this.season,
@@ -261,6 +322,9 @@ class PlayerProfile {
     this.injuryHistory = const [],
     this.marketValueHistory = const [],
     this.competitionStats = const [],
+    this.careerYearSnapshots = const [],
+    this.retirementReason = '未记录',
+    this.retirementContext = '未记录',
     this.characterAttributes,
   });
 
@@ -300,6 +364,9 @@ class PlayerProfile {
   final List<InjurySpell> injuryHistory;
   final List<MarketValuePoint> marketValueHistory;
   final List<CompetitionStats> competitionStats;
+  final List<CareerYearSnapshot> careerYearSnapshots;
+  final String retirementReason;
+  final String retirementContext;
   final CareerStats stats;
   final PlayerAttributes? characterAttributes;
 
@@ -372,6 +439,11 @@ class PlayerProfile {
       competitionStats: _maps(
         career['competition_statistics'],
       ).map(CompetitionStats.fromJson).toList(),
+      careerYearSnapshots: _maps(
+        career['annual_snapshots'],
+      ).map(CareerYearSnapshot.fromJson).toList(),
+      retirementReason: _string(career['retirement_reason'], fallback: '未记录'),
+      retirementContext: _string(career['retirement_context'], fallback: '未记录'),
       stats: CareerStats.fromJson(_map(career['statistics'])),
       characterAttributes: _map(json['character_model']).isEmpty
           ? null
@@ -435,6 +507,11 @@ class PlayerProfile {
       'competition_statistics': competitionStats
           .map((competition) => competition.toJson())
           .toList(),
+      'annual_snapshots': careerYearSnapshots
+          .map((snapshot) => snapshot.toJson())
+          .toList(),
+      'retirement_reason': retirementReason,
+      'retirement_context': retirementContext,
       'statistics': stats.toJson(),
     },
   };

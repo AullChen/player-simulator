@@ -1,6 +1,6 @@
 # 公开数据来源与适用范围
 
-当前概率数据版本为 `2026.07-public-v3`。代码中的来源清单位于
+当前概率数据版本为 `2026.07-public-v4`。代码中的来源清单位于
 `lib/data/probability_sources.dart`，本页记录每个公开事实如何进入模型，以及它不能代表什么。
 
 ## FIFA 公开资料
@@ -12,6 +12,14 @@
 | [FIFA Club World Cup 2025 squad lists](https://www.fifa.com/en/tournaments/mens/club-world-cup/usa-2025/articles/world-cup-winners-fcwc25-usa-lionel-messi-neuer-griezmann) | 官方表逐项列出 81 个国籍，包括巴西 141、阿根廷 103、西班牙 54、葡萄牙 49、墨西哥 41、美国 40 等 | 先按洲足联聚合人数，再在洲内按具体国家人数绘制扇区 | 这是洲际代表俱乐部的精英样本，不代表全球所有职业球员 |
 | [FIFA Men’s January transfer snapshot 2025](https://inside.fifa.com/transfer-system/transfer-reports?tab=Men%27s+January+transfer+snapshot+2025) | 5,863 笔男子职业国际转会；平均年龄 24.9 岁；17.7% 涉及转会费 | 转会年龄中心值、有偿转会比例与转会类型关系 | 只覆盖国际转会，不能代表同协会内部转会 |
 | [FIFA Transfer Reports Methodology](https://inside.fifa.com/transfer-system/transfer-reports/methodology) | 统计 11 人制职业球员的国际转会，交易由俱乐部和协会通过 TMS 提交 | 限定转会概率的适用范围 | 不是完整的球员职业履历数据库 |
+
+## 退役与职业脆弱性资料
+
+| 来源 | 公开事实 | 在项目中的用途 | 限制 |
+| --- | --- | --- | --- |
+| [Koch et al. 2021](https://pubmed.ncbi.nlm.nih.gov/34370085/) | 116 名已退役德国男子职业球员中，62.9% 报告因伤结束生涯；急性伤 38.8%、慢性/系列伤 24.1%、年龄 26.7%、转向其他职业 6.9%、个人原因 3.4% | 仅在一次退役判定命中后，校准具体退役原因的基础相对权重 | 小型回顾性德国样本，存在回忆偏差，不能代表全球球员，也不是每赛季退役率 |
+| [FIFPRO Global Employment Report 2016](https://www.fifpro.org/en/articles/2019/11/mens-football-global-report-2016) | 约 14,000 名球员、54 国、87 联赛；职业合同平均长度不足两年 | 让低声望、年龄增长和短合同共同提高“合同结束后无合适去处”的产品风险 | 报告说明就业脆弱性，但没有给出全球“无俱乐部而退役”的精确概率 |
+| [Injury Risk Following Return-to-Play](https://pmc.ncbi.nlm.nih.gov/articles/PMC11787231/) | 职业球员伤愈复出后的非接触伤病风险约为基线两倍 | 让既往伤病、带伤坚持和冒险复出提高后续伤病及退役风险 | 研究是复出后的伤病风险，不直接等于退役概率 |
 
 ## 专业球员网站的字段类型
 
@@ -48,6 +56,10 @@ Transfermarkt 在本项目中只用于确定现代职业球员资料页常见的
   62 和 20 用来表达“自由球员占多数、其余主要为租借”的公开关系，不是 FIFA 发布的精确百分比。
 - 转会年龄围绕 24.9 岁抽样，并受首秀和退役年龄约束；它是校准后的生成分布，
   不是对原始 TMS 记录的复刻。
+- 随机长度模式先用年龄、健康、既往伤病、训练负荷、声望和本轮行动计算产品级退役风险；
+  命中后才使用上表退役原因比例并按当前人物状态动态修正。两个步骤不能混为同一概率。
+- 巅峰能力 80+ 占 50%、70–79 占 40%、70 以下占 10% 是明确的游戏设计目标，
+  不是现实世界职业球员评分分布；每个分段内部才沿用旧成长模型的条件概率。
 
 ### 当前仍为产品建模的概率
 

@@ -117,10 +117,18 @@ void main() {
       expect(player.stats.goals, greaterThan(0));
       expect(player.characterAttributes, isNotNull);
       expect(player.toJson(), contains('character_model'));
+      expect(
+        player.careerYearSnapshots,
+        hasLength(player.retirementAge - player.debutAge + 1),
+      );
       final restored = PlayerProfile.fromJson(player.toJson());
       expect(
         restored.characterAttributes![PlayerAttribute.stamina],
         player.characterAttributes![PlayerAttribute.stamina],
+      );
+      expect(
+        restored.careerYearSnapshots.length,
+        player.careerYearSnapshots.length,
       );
     });
 
@@ -148,6 +156,36 @@ void main() {
       }
     });
 
+    test('random-length careers plan variable nodes and may retire early', () {
+      LifeSimulator? earlyRetirement;
+      for (var seed = 0; seed < 500 && earlyRetirement == null; seed++) {
+        final simulator = LifeSimulator(
+          nationality: '中国',
+          position: '中前卫',
+          density: CareerDecisionDensity.random,
+          random: Random(seed),
+        );
+        expect(simulator.totalStages, inInclusiveRange(6, 22));
+        while (!simulator.isComplete) {
+          simulator.choose(
+            simulator.decisions.length,
+            simulator.currentStage.choices.length - 1,
+          );
+        }
+        expect(simulator.retirementOutcome, isNotNull);
+        if (simulator.retiredEarly) earlyRetirement = simulator;
+      }
+
+      expect(earlyRetirement, isNotNull);
+      final player = earlyRetirement!.finish(name: '随机退役测试');
+      expect(player.retirementReason, isNot('未记录'));
+      expect(player.retirementContext, isNot('未记录'));
+      expect(
+        player.careerYearSnapshots,
+        hasLength(player.retirementAge - player.debutAge + 1),
+      );
+    });
+
     test('provides at least 100 raw candidates in every career phase', () {
       for (final phase in CareerPhase.values) {
         final options = LifeEventPool.rawOptionsFor(phase);
@@ -172,6 +210,14 @@ void main() {
           greaterThanOrEqualTo(100),
         );
         expect(simulator.currentStage.choices.length, inInclusiveRange(3, 5));
+        for (final choice in simulator.currentStage.choices) {
+          if (choice.causesTransfer) {
+            expect(choice.actionLabelZh, isNot(contains('留队')));
+            expect(choice.outcomeZh, contains('离开'));
+          } else {
+            expect(choice.outcomeZh, contains('不会转会'));
+          }
+        }
         simulator.choose(index, index % simulator.currentStage.choices.length);
       }
 

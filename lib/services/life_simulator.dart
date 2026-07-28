@@ -2,10 +2,12 @@ import 'dart:math';
 
 import '../data/football_catalog.dart';
 import '../data/life_event_pool.dart';
+import '../data/probability_sources.dart';
 import '../domain/player_attributes.dart';
 import '../domain/player_profile.dart';
 
 enum CareerDecisionDensity {
+  random,
   milestones,
   everyThreeYears,
   everyTwoYears,
@@ -14,6 +16,7 @@ enum CareerDecisionDensity {
 
 extension CareerDecisionDensityInfo on CareerDecisionDensity {
   String get label => switch (this) {
+    CareerDecisionDensity.random => '随机长度',
     CareerDecisionDensity.milestones => '关键节点',
     CareerDecisionDensity.everyThreeYears => '每 3 年',
     CareerDecisionDensity.everyTwoYears => '每 2 年',
@@ -21,6 +24,7 @@ extension CareerDecisionDensityInfo on CareerDecisionDensity {
   };
 
   String get labelEn => switch (this) {
+    CareerDecisionDensity.random => 'Random length',
     CareerDecisionDensity.milestones => 'Milestones',
     CareerDecisionDensity.everyThreeYears => 'Every 3 years',
     CareerDecisionDensity.everyTwoYears => 'Every 2 years',
@@ -28,6 +32,7 @@ extension CareerDecisionDensityInfo on CareerDecisionDensity {
   };
 
   String get description => switch (this) {
+    CareerDecisionDensity.random => '随机生成 6–22 个预定节点；每次选择后都可能因伤病、合同、高龄等原因提前退役。',
     CareerDecisionDensity.milestones => '5 次核心抉择，快速完成一段生涯。',
     CareerDecisionDensity.everyThreeYears => '8 次选择，覆盖成长、巅峰与转型。',
     CareerDecisionDensity.everyTwoYears => '11 次选择，更细致地管理竞技状态。',
@@ -35,6 +40,9 @@ extension CareerDecisionDensityInfo on CareerDecisionDensity {
   };
 
   String get descriptionEn => switch (this) {
+    CareerDecisionDensity.random =>
+      'Plan 6–22 random nodes; injury, contracts, age or personal reasons '
+          'can end the career after any choice.',
     CareerDecisionDensity.milestones =>
       'Five defining choices for a quick career.',
     CareerDecisionDensity.everyThreeYears =>
@@ -46,6 +54,7 @@ extension CareerDecisionDensityInfo on CareerDecisionDensity {
   };
 
   String get estimatedTime => switch (this) {
+    CareerDecisionDensity.random => '约 2–10 分钟',
     CareerDecisionDensity.milestones => '约 2 分钟',
     CareerDecisionDensity.everyThreeYears => '约 4 分钟',
     CareerDecisionDensity.everyTwoYears => '约 6 分钟',
@@ -53,6 +62,7 @@ extension CareerDecisionDensityInfo on CareerDecisionDensity {
   };
 
   String get estimatedTimeEn => switch (this) {
+    CareerDecisionDensity.random => 'about 2–10 min',
     CareerDecisionDensity.milestones => 'about 2 min',
     CareerDecisionDensity.everyThreeYears => 'about 4 min',
     CareerDecisionDensity.everyTwoYears => 'about 6 min',
@@ -60,6 +70,7 @@ extension CareerDecisionDensityInfo on CareerDecisionDensity {
   };
 
   List<int> get ages => switch (this) {
+    CareerDecisionDensity.random => const [],
     CareerDecisionDensity.milestones => const [15, 19, 24, 29, 34],
     CareerDecisionDensity.everyThreeYears => const [
       15,
@@ -88,6 +99,12 @@ extension CareerDecisionDensityInfo on CareerDecisionDensity {
   };
 
   int get nodeCount => ages.length;
+
+  String get nodeSummary =>
+      this == CareerDecisionDensity.random ? '6–22 节点' : '$nodeCount 节点';
+
+  String get nodeSummaryEn =>
+      this == CareerDecisionDensity.random ? '6–22 nodes' : '$nodeCount nodes';
 }
 
 class LifeChoice {
@@ -101,6 +118,10 @@ class LifeChoice {
     required this.backgroundEn,
     required this.descriptionZh,
     required this.descriptionEn,
+    required this.actionLabelZh,
+    required this.actionLabelEn,
+    required this.outcomeZh,
+    required this.outcomeEn,
     required this.delta,
     required this.trainingLoadDelta,
     required this.injuryRiskDelta,
@@ -116,6 +137,10 @@ class LifeChoice {
   final String backgroundEn;
   final String descriptionZh;
   final String descriptionEn;
+  final String actionLabelZh;
+  final String actionLabelEn;
+  final String outcomeZh;
+  final String outcomeEn;
   final AttributeDelta delta;
   final int trainingLoadDelta;
   final int injuryRiskDelta;
@@ -158,6 +183,26 @@ class LifeDecision {
   final String club;
 }
 
+enum LifeRetirementCause { acuteInjury, chronicInjury, noClub, age, personal }
+
+class LifeRetirementOutcome {
+  const LifeRetirementOutcome({
+    required this.age,
+    required this.cause,
+    required this.titleZh,
+    required this.titleEn,
+    required this.contextZh,
+    required this.contextEn,
+  });
+
+  final int age;
+  final LifeRetirementCause cause;
+  final String titleZh;
+  final String titleEn;
+  final String contextZh;
+  final String contextEn;
+}
+
 class LifeSimulator {
   LifeSimulator({
     required this.nationality,
@@ -170,6 +215,9 @@ class LifeSimulator {
            initialAttributes ??
            _createInitialAttributes(position, random ?? Random()) {
     attributes = _initialAttributes;
+    _stageAges = density == CareerDecisionDensity.random
+        ? _randomStageAges()
+        : List<int>.unmodifiable(density.ages);
     _preferredFoot =
         attributes[PlayerAttribute.leftLeg] >
             attributes[PlayerAttribute.rightLeg]
@@ -178,6 +226,15 @@ class LifeSimulator {
     _currentClub = _pickInitialClub();
     _initialClub = _currentClub;
     _peakOverall = overallRating;
+    _checkpoints.add(
+      _LifeCheckpoint(
+        age: _stageAges.first - 1,
+        club: _currentClub.name,
+        attributes: attributes,
+        overallRating: overallRating,
+        eventZh: '进入职业生涯模拟',
+      ),
+    );
     _currentStage = _buildStage(0);
   }
 
@@ -189,18 +246,25 @@ class LifeSimulator {
   final List<LifeDecision> decisions = [];
   final List<TransferRecord> _transfers = [];
   final List<InjurySpell> _injuries = [];
+  final List<_LifeCheckpoint> _checkpoints = [];
 
   late PlayerAttributes attributes;
+  late final List<int> _stageAges;
   late ClubDefinition _currentClub;
   late ClubDefinition _initialClub;
   late String _preferredFoot;
   late LifeStage _currentStage;
   late int _peakOverall;
+  LifeRetirementOutcome? _retirementOutcome;
   int trainingLoad = 12;
   int injuryRisk = 8;
 
-  int get totalStages => density.ages.length;
-  bool get isComplete => decisions.length == totalStages;
+  int get totalStages => _stageAges.length;
+  bool get isComplete =>
+      _retirementOutcome != null || decisions.length == totalStages;
+  bool get retiredEarly =>
+      _retirementOutcome != null && decisions.length < totalStages;
+  LifeRetirementOutcome? get retirementOutcome => _retirementOutcome;
   LifeStage get currentStage {
     if (isComplete) throw StateError('The career is already complete.');
     return _currentStage;
@@ -294,9 +358,25 @@ class LifeSimulator {
       _makeTransfer(stage.age, choice.actionId == 'loan');
     }
     _maybeRecordInjury(stage, choice);
-    _peakOverall = max(_peakOverall, overallRating);
     decisions.add(
       LifeDecision(stage: stage, choice: choice, club: _currentClub.name),
+    );
+    if (density == CareerDecisionDensity.random) {
+      _maybeTriggerRetirement(
+        stage,
+        choice,
+        forceNaturalEnd: decisions.length == totalStages,
+      );
+    }
+    _peakOverall = max(_peakOverall, overallRating);
+    _checkpoints.add(
+      _LifeCheckpoint(
+        age: stage.age,
+        club: _currentClub.name,
+        attributes: attributes,
+        overallRating: overallRating,
+        eventZh: choice.titleZh,
+      ),
     );
 
     if (!isComplete) {
@@ -309,12 +389,13 @@ class LifeSimulator {
       throw StateError('Every career stage needs a choice.');
     }
 
-    final retirementAge = density.ages.last.clamp(34, 39);
+    final retirementAge =
+        (_retirementOutcome?.age ?? _stageAges.last.clamp(34, 39)).toInt();
     final initialRating = _ratingFor(_initialAttributes);
     final finalRating = overallRating.clamp(45, 94);
     final peakRating = max(_peakOverall, max(initialRating + 4, finalRating));
-    final birthYear = 2011 - density.ages.first;
-    final debutAge = 16 + _random.nextInt(3);
+    final birthYear = 2011 - _stageAges.first;
+    final debutAge = min(16 + _random.nextInt(3), max(16, retirementAge - 1));
     final career = [
       for (var index = 0; index < decisions.length; index++)
         CareerChapter(
@@ -398,6 +479,14 @@ class LifeSimulator {
       goals: goals,
       assists: assists,
     );
+    final annualSnapshots = _annualSnapshots(
+      birthYear: birthYear,
+      debutAge: debutAge,
+      retirementAge: retirementAge,
+    );
+    final retirementReason = _retirementOutcome?.titleZh ?? '自然结束职业生涯';
+    final retirementContext =
+        _retirementOutcome?.contextZh ?? '在完成既定生涯节点后，球员与最后一家俱乐部共同确认退役。';
 
     return PlayerProfile(
       mode: CareerMode.life,
@@ -445,12 +534,15 @@ class LifeSimulator {
       marketValueHistory: values,
       competitionStats: competitionStats,
       stats: stats,
+      careerYearSnapshots: annualSnapshots,
+      retirementReason: retirementReason,
+      retirementContext: retirementContext,
       characterAttributes: attributes,
     );
   }
 
   LifeStage _buildStage(int index) {
-    final age = density.ages[index];
+    final age = _stageAges[index];
     final phase = LifeEventPool.phaseForAge(age);
     final raw = LifeEventPool.rawOptionsFor(phase);
     final eligible = raw.where(_isEligible).toList();
@@ -476,10 +568,19 @@ class LifeSimulator {
                 '${candidate.scenario.titleZh} · ${candidate.action.titleZh}',
             titleEn:
                 '${candidate.scenario.titleEn} · ${candidate.action.titleEn}',
-            backgroundZh: candidate.scenario.contextZh,
-            backgroundEn: candidate.scenario.contextEn,
+            backgroundZh:
+                '${candidate.scenario.contextZh} '
+                '你目前注册在${_currentClub.name}，本轮决定会立即按“确认结果”执行。',
+            backgroundEn:
+                '${candidate.scenario.contextEn} You are currently registered '
+                'with ${_currentClub.name}; the confirmed outcome below takes '
+                'effect this round.',
             descriptionZh: candidate.action.descriptionZh,
             descriptionEn: candidate.action.descriptionEn,
+            actionLabelZh: _actionLabelZh(candidate.action),
+            actionLabelEn: _actionLabelEn(candidate.action),
+            outcomeZh: _outcomeZh(candidate.action),
+            outcomeEn: _outcomeEn(candidate.action),
             delta: candidate.action.delta,
             trainingLoadDelta: candidate.action.trainingLoadDelta,
             injuryRiskDelta: candidate.action.injuryRiskDelta,
@@ -487,6 +588,61 @@ class LifeSimulator {
           ),
       ],
     );
+  }
+
+  String _actionLabelZh(LifeActionSeed action) {
+    if (action.id == 'loan') return '租借离队';
+    if (action.causesTransfer) return '永久转会';
+    if (action.id == 'stay' || action.id == 'negotiate') return '留队';
+    return switch (action.id) {
+      'report' || 'specialist' || 'rehab_group' || 'recover' => '留队 · 恢复',
+      'play_through' || 'gamble' => '留队 · 冒险复出',
+      'technical' || 'intensive' || 'tactical' || 'team_session' => '留队 · 训练',
+      'safe' || 'creative' || 'physical' || 'lead' || 'hero' => '留队 · 比赛',
+      _ => '留队 · 场外选择',
+    };
+  }
+
+  String _actionLabelEn(LifeActionSeed action) {
+    if (action.id == 'loan') return 'LOAN EXIT';
+    if (action.causesTransfer) return 'PERMANENT TRANSFER';
+    if (action.id == 'stay' || action.id == 'negotiate') return 'STAY';
+    return switch (action.id) {
+      'report' ||
+      'specialist' ||
+      'rehab_group' ||
+      'recover' => 'STAY · RECOVER',
+      'play_through' || 'gamble' => 'STAY · RISK RETURN',
+      'technical' ||
+      'intensive' ||
+      'tactical' ||
+      'team_session' => 'STAY · TRAIN',
+      'safe' || 'creative' || 'physical' || 'lead' || 'hero' => 'STAY · MATCH',
+      _ => 'STAY · OFF-PITCH',
+    };
+  }
+
+  String _outcomeZh(LifeActionSeed action) {
+    if (action.id == 'loan') {
+      return '确认后：你本轮离开${_currentClub.name}，以租借形式加盟另一家真实俱乐部。';
+    }
+    if (action.causesTransfer) {
+      return '确认后：你本轮永久离开${_currentClub.name}，并加盟另一家真实俱乐部。';
+    }
+    return '确认后：你本轮不会转会，继续效力${_currentClub.name}。';
+  }
+
+  String _outcomeEn(LifeActionSeed action) {
+    if (action.id == 'loan') {
+      return 'On confirmation: you leave ${_currentClub.name} this round and '
+          'join another real club on loan.';
+    }
+    if (action.causesTransfer) {
+      return 'On confirmation: you permanently leave ${_currentClub.name} '
+          'this round and join another real club.';
+    }
+    return 'On confirmation: no transfer occurs this round; you remain with '
+        '${_currentClub.name}.';
   }
 
   String _stageContextZh(int index, int age) {
@@ -607,7 +763,7 @@ class LifeSimulator {
     _currentClub = (close.isEmpty
         ? possible
         : close)[_random.nextInt((close.isEmpty ? possible : close).length)];
-    final birthYear = 2011 - density.ages.first;
+    final birthYear = 2011 - _stageAges.first;
     final year = birthYear + age;
     final fee = loan
         ? 0.0
@@ -632,7 +788,7 @@ class LifeSimulator {
     final themeBonus = choice.theme == LifeEventTheme.health ? 14 : 0;
     if (_random.nextInt(240) >= base + themeBonus) return;
     final days = 7 + _random.nextInt(55) + injuryRisk ~/ 3;
-    final birthYear = 2011 - density.ages.first;
+    final birthYear = 2011 - _stageAges.first;
     final year = birthYear + stage.age;
     _injuries.add(
       InjurySpell(
@@ -649,6 +805,280 @@ class LifeSimulator {
       }),
     );
     injuryRisk = (injuryRisk + 4).clamp(0, 100);
+  }
+
+  List<int> _randomStageAges() {
+    final terminalAge = 33 + _random.nextInt(7);
+    final maximumCount = min(22, terminalAge - 16);
+    final count = 6 + _random.nextInt(maximumCount - 5);
+    final middleAges = [for (var age = 18; age < terminalAge; age++) age]
+      ..shuffle(_random);
+    return [17, ...middleAges.take(count - 2), terminalAge]..sort();
+  }
+
+  void _maybeTriggerRetirement(
+    LifeStage stage,
+    LifeChoice choice, {
+    required bool forceNaturalEnd,
+  }) {
+    final probability = _retirementHazard(stage.age, choice);
+    if (_random.nextDouble() < probability) {
+      final cause = _pickRetirementCause(stage.age, choice);
+      if (cause == LifeRetirementCause.acuteInjury) {
+        _recordCareerEndingInjury(stage.age);
+      }
+      _retirementOutcome = _retirementStory(stage.age, cause);
+      return;
+    }
+    if (forceNaturalEnd) {
+      _retirementOutcome = _retirementStory(stage.age, LifeRetirementCause.age);
+    }
+  }
+
+  double _retirementHazard(int age, LifeChoice choice) {
+    var probability = switch (age) {
+      <= 20 => 0.003,
+      <= 24 => 0.006,
+      <= 28 => 0.012,
+      <= 30 => 0.022,
+      <= 32 => 0.040,
+      <= 34 => 0.075,
+      <= 36 => 0.140,
+      <= 38 => 0.240,
+      _ => 0.380,
+    };
+    probability += max(0, injuryRisk - 28) / 850;
+    probability += max(0, trainingLoad - 52) / 1100;
+    probability += max(0, 58 - attributes[PlayerAttribute.health]) / 620;
+    probability += min(0.075, _injuries.length * 0.012);
+    if (_injuries.isNotEmpty && _injuries.last.daysAbsent >= 90) {
+      probability += 0.055;
+    }
+    probability += switch (choice.actionId) {
+      'play_through' || 'gamble' => 0.075,
+      'intensive' => 0.040,
+      'physical' || 'hero' => 0.022,
+      _ => 0,
+    };
+    if (age >= 29 && attributes[PlayerAttribute.reputation] < 45) {
+      probability += (45 - attributes[PlayerAttribute.reputation]) / 360;
+    }
+    if (choice.actionId == 'recover' ||
+        choice.actionId == 'report' ||
+        choice.actionId == 'specialist') {
+      probability *= 0.68;
+    }
+    return probability.clamp(0.001, 0.62).toDouble();
+  }
+
+  LifeRetirementCause _pickRetirementCause(int age, LifeChoice choice) {
+    final totalInjuryDays = _injuries.fold<int>(
+      0,
+      (sum, injury) => sum + injury.daysAbsent,
+    );
+    final isRiskyReturn =
+        choice.actionId == 'play_through' || choice.actionId == 'gamble';
+    final acuteWeight =
+        ProbabilitySources.retirementAcuteInjuryCausePercent *
+        (isRiskyReturn ? 1.8 : 1) *
+        (choice.injuryRiskDelta > 0 ? 1.25 : 1);
+    final chronicWeight =
+        ProbabilitySources.retirementChronicInjuryCausePercent *
+        (_injuries.isEmpty
+            ? 0.04
+            : 1 + min(2.2, totalInjuryDays / 260 + _injuries.length / 5));
+    final ageWeight =
+        ProbabilitySources.retirementAgeCausePercent *
+        (age < 27 ? 0.02 : max(0.15, (age - 27) / 7));
+    final marketPressure =
+        1 +
+        max(0, 50 - attributes[PlayerAttribute.reputation]) / 12 +
+        max(0, age - 30) / 8;
+    final noClubWeight =
+        ProbabilitySources.retirementAlternativeCareerCausePercent *
+        marketPressure;
+    final personalWeight =
+        ProbabilitySources.retirementPersonalCausePercent *
+        (1 + max(0, 52 - attributes[PlayerAttribute.morale]) / 10);
+    final weighted = <(LifeRetirementCause, double)>[
+      (LifeRetirementCause.acuteInjury, acuteWeight),
+      (LifeRetirementCause.chronicInjury, chronicWeight),
+      (LifeRetirementCause.noClub, noClubWeight),
+      (LifeRetirementCause.age, ageWeight),
+      (LifeRetirementCause.personal, personalWeight),
+    ];
+    final total = weighted.fold<double>(0, (sum, item) => sum + item.$2);
+    var cursor = _random.nextDouble() * total;
+    for (final item in weighted) {
+      cursor -= item.$2;
+      if (cursor <= 0) return item.$1;
+    }
+    return weighted.last.$1;
+  }
+
+  void _recordCareerEndingInjury(int age) {
+    final birthYear = 2011 - _stageAges.first;
+    final year = birthYear + age;
+    final type = _random.nextBool() ? '前十字韧带重伤' : '复杂膝关节伤势';
+    final days = 240 + _random.nextInt(181);
+    _injuries.add(
+      InjurySpell(
+        season: '$year/${year + 1}',
+        type: type,
+        daysAbsent: days,
+        matchesMissed: max(20, (days / 7 * 1.35).round()),
+      ),
+    );
+    attributes = attributes.apply(
+      const AttributeDelta({
+        PlayerAttribute.health: -10,
+        PlayerAttribute.recovery: -7,
+        PlayerAttribute.morale: -5,
+      }),
+    );
+  }
+
+  LifeRetirementOutcome _retirementStory(int age, LifeRetirementCause cause) {
+    final totalDays = _injuries.fold<int>(
+      0,
+      (sum, injury) => sum + injury.daysAbsent,
+    );
+    return switch (cause) {
+      LifeRetirementCause.acuteInjury => LifeRetirementOutcome(
+        age: age,
+        cause: cause,
+        titleZh: '重伤后结束职业生涯',
+        titleEn: 'Retired after a major injury',
+        contextZh:
+            '$age 岁时，你在${_currentClub.name}遭遇'
+            '${_injuries.last.type}。手术与长期评估显示，继续职业比赛的风险已经无法接受，'
+            '你在康复期内宣布退役。',
+        contextEn:
+            'At $age, you suffered ${_injuries.last.type} with '
+            '${_currentClub.name}. Surgery and long-term assessment made the '
+            'risk of continuing unacceptable, so you retired during rehab.',
+      ),
+      LifeRetirementCause.chronicInjury => LifeRetirementOutcome(
+        age: age,
+        cause: cause,
+        titleZh: '反复伤病耗尽身体',
+        titleEn: 'Recurring injuries ended the career',
+        contextZh:
+            '到 $age 岁，你已经因反复伤病累计缺阵 $totalDays 天。'
+            '恢复周期越来越长，连续训练也难以维持，你与${_currentClub.name}共同决定不再冒险。',
+        contextEn:
+            'By $age, recurring injuries had cost $totalDays days. Recovery '
+            'kept getting longer and full training was no longer sustainable, '
+            'so you and ${_currentClub.name} decided to stop.',
+      ),
+      LifeRetirementCause.noClub => LifeRetirementOutcome(
+        age: age,
+        cause: cause,
+        titleZh: age <= 19 ? '未能获得职业合同' : '合同结束后无合适去处',
+        titleEn: age <= 19
+            ? 'No professional contract arrived'
+            : 'No suitable club after the contract ended',
+        contextZh: age <= 19
+            ? '${_currentClub.name}的青训评估结束后，一线队没有提供职业合同；'
+                  '其他试训也未能转化为正式注册，你选择结束球员道路。'
+            : '$age 岁赛季结束后，${_currentClub.name}没有续约。经纪团队联系了多家俱乐部，'
+                  '但报价与出场计划都无法支撑继续职业生涯，你在转会窗关闭后宣布退役。',
+        contextEn: age <= 19
+            ? '${_currentClub.name} did not offer a senior contract after the '
+                  'academy review, and other trials produced no registration.'
+            : 'After the age-$age season, ${_currentClub.name} did not renew. '
+                  'Several approaches produced no viable role, and you retired '
+                  'when the window closed.',
+      ),
+      LifeRetirementCause.age => LifeRetirementOutcome(
+        age: age,
+        cause: cause,
+        titleZh: '高龄与恢复速度促成退役',
+        titleEn: 'Age and recovery led to retirement',
+        contextZh:
+            '$age 岁赛季结束时，赛后恢复已经占据训练周的大部分时间。'
+            '在与${_currentClub.name}完成最后一场内部复盘后，你选择在还能完整告别时退役。',
+        contextEn:
+            'At the end of the age-$age season, recovery consumed most of each '
+            'training week. After a final review with ${_currentClub.name}, '
+            'you chose to retire while you could still leave on your terms.',
+      ),
+      LifeRetirementCause.personal => LifeRetirementOutcome(
+        age: age,
+        cause: cause,
+        titleZh: '长期压力后主动离开',
+        titleEn: 'Stepped away after sustained pressure',
+        contextZh:
+            '到 $age 岁，长期竞争、迁徙和恢复安排已经让足球不再带来同样的投入感。'
+            '你履行完在${_currentClub.name}的赛季责任后，主动结束职业生涯。',
+        contextEn:
+            'By $age, sustained competition, relocation and recovery had '
+            'changed your relationship with football. After completing the '
+            'season with ${_currentClub.name}, you chose to step away.',
+      ),
+    };
+  }
+
+  List<CareerYearSnapshot> _annualSnapshots({
+    required int birthYear,
+    required int debutAge,
+    required int retirementAge,
+  }) {
+    final result = <CareerYearSnapshot>[];
+    var checkpointIndex = 0;
+    for (var age = debutAge; age <= retirementAge; age++) {
+      while (checkpointIndex + 1 < _checkpoints.length &&
+          _checkpoints[checkpointIndex + 1].age <= age) {
+        checkpointIndex += 1;
+      }
+      final checkpoint = _checkpoints[checkpointIndex];
+      final model = checkpoint.attributes;
+      final year = birthYear + age;
+      final keyEvent = checkpoint.age == age
+          ? checkpoint.eventZh
+          : '在${checkpoint.club}延续上一阶段选择后的赛季';
+      result.add(
+        CareerYearSnapshot(
+          season: '$year/${((year + 1) % 100).toString().padLeft(2, '0')}',
+          age: age,
+          club: checkpoint.club,
+          squadRole: _squadRole(age, checkpoint.overallRating, model),
+          overallRating: checkpoint.overallRating,
+          technical: model[PlayerAttribute.technique],
+          physical: model.average(const [
+            PlayerAttribute.speed,
+            PlayerAttribute.strength,
+            PlayerAttribute.stamina,
+          ]).round(),
+          mental: model.average(const [
+            PlayerAttribute.intelligence,
+            PlayerAttribute.decisionMaking,
+            PlayerAttribute.discipline,
+            PlayerAttribute.resilience,
+            PlayerAttribute.teamwork,
+          ]).round(),
+          fitness: model.average(const [
+            PlayerAttribute.health,
+            PlayerAttribute.recovery,
+            PlayerAttribute.stamina,
+          ]).round(),
+          morale: model[PlayerAttribute.morale],
+          reputation: model[PlayerAttribute.reputation],
+          keyEvent: keyEvent,
+        ),
+      );
+    }
+    return result;
+  }
+
+  String _squadRole(int age, int rating, PlayerAttributes model) {
+    final reputation = model[PlayerAttribute.reputation];
+    if (age <= 18 && rating < 58) return '青训 / 预备队';
+    if (rating < 56 || reputation < 40) return '替补与轮换';
+    if (rating >= 76 && reputation >= 68) return '核心球员';
+    if (rating >= 66 || reputation >= 55) return '常规主力';
+    if (age >= 33) return '经验型轮换';
+    return '轮换球员';
   }
 
   int _chapterRating(int index, int initial, int peak) {
@@ -809,3 +1239,19 @@ String _phaseTitleEn(CareerPhase phase) => switch (phase) {
 };
 
 const _injuryTypes = ['肌肉拉伤', '脚踝扭伤', '膝部炎症', '腿筋伤势', '撞击伤'];
+
+class _LifeCheckpoint {
+  const _LifeCheckpoint({
+    required this.age,
+    required this.club,
+    required this.attributes,
+    required this.overallRating,
+    required this.eventZh,
+  });
+
+  final int age;
+  final String club;
+  final PlayerAttributes attributes;
+  final int overallRating;
+  final String eventZh;
+}

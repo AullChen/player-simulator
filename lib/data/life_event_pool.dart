@@ -244,8 +244,10 @@ abstract final class LifeEventPool {
         id: 'stay',
         titleZh: '留队争取位置',
         titleEn: 'Stay and fight',
-        descriptionZh: '用稳定和耐心争取教练信任。',
-        descriptionEn: 'Earn the coach’s trust through patience.',
+        descriptionZh: '拒绝离队方案，本轮继续留在当前俱乐部，用训练和出场争取教练信任。',
+        descriptionEn:
+            'Reject the exit route and remain at the current club this round, '
+            'using training and minutes to earn the coach’s trust.',
         delta: AttributeDelta({
           PlayerAttribute.discipline: 3,
           PlayerAttribute.resilience: 3,
@@ -256,8 +258,10 @@ abstract final class LifeEventPool {
         id: 'move',
         titleZh: '推动转会',
         titleEn: 'Push for a transfer',
-        descriptionZh: '前往另一家真实俱乐部，承担适应新环境的风险。',
-        descriptionEn: 'Join another real club and accept adaptation risk.',
+        descriptionZh: '确认离开当前俱乐部，并在本轮永久加盟另一家真实俱乐部。',
+        descriptionEn:
+            'Leave the current club and permanently join another real club '
+            'this round.',
         delta: AttributeDelta({
           PlayerAttribute.reputation: 3,
           PlayerAttribute.morale: 2,
@@ -272,8 +276,10 @@ abstract final class LifeEventPool {
         id: 'loan',
         titleZh: '接受外租历练',
         titleEn: 'Take a loan spell',
-        descriptionZh: '换取稳定出场和更直接的成长空间。',
-        descriptionEn: 'Trade comfort for regular minutes and development.',
+        descriptionZh: '确认暂时离开当前俱乐部，并在本轮租借加盟另一家真实俱乐部。',
+        descriptionEn:
+            'Temporarily leave the current club and join another real club '
+            'on loan this round.',
         delta: AttributeDelta({
           PlayerAttribute.technique: 2,
           PlayerAttribute.resilience: 3,
@@ -285,8 +291,10 @@ abstract final class LifeEventPool {
         id: 'negotiate',
         titleZh: '理性谈判角色',
         titleEn: 'Negotiate a role',
-        descriptionZh: '依靠判断力争取清晰的竞技计划。',
-        descriptionEn: 'Use sound judgement to secure a clear sporting plan.',
+        descriptionZh: '不提出离队，本轮留在当前俱乐部并与教练明确出场与位置计划。',
+        descriptionEn:
+            'Stay at the current club this round and agree a clearer role and '
+            'minutes plan with the coach.',
         delta: AttributeDelta({
           PlayerAttribute.intelligence: 2,
           PlayerAttribute.decisionMaking: 3,
@@ -296,10 +304,12 @@ abstract final class LifeEventPool {
       ),
       LifeActionSeed(
         id: 'agent_pressure',
-        titleZh: '让经纪人公开施压',
-        titleEn: 'Let the agent apply pressure',
-        descriptionZh: '提高市场关注，同时损害更衣室关系。',
-        descriptionEn: 'Increase market attention at a dressing-room cost.',
+        titleZh: '授权经纪人促成离队',
+        titleEn: 'Authorise the agent to secure an exit',
+        descriptionZh: '接受经纪人找到的报价，本轮永久离开当前俱乐部；更衣室关系会因此受损。',
+        descriptionEn:
+            'Accept the agent’s offer and permanently leave the current club '
+            'this round, at a dressing-room cost.',
         delta: AttributeDelta({
           PlayerAttribute.reputation: 5,
           PlayerAttribute.teamwork: -4,
