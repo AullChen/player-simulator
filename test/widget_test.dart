@@ -82,6 +82,7 @@ void main() {
 
     expect(find.text('关键节点'), findsOneWidget);
     expect(find.text('逐年选择'), findsOneWidget);
+    expect(find.text('随机长度'), findsOneWidget);
 
     await tester.scrollUntilVisible(
       find.text('逐年选择'),
@@ -103,6 +104,23 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(const MaterialApp(home: DreamModeScreen()));
+
+    final transferField = find.widgetWithText(TextFormField, '转会流水（每行一条）');
+    await tester.scrollUntilVisible(
+      transferField,
+      500,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final editable = tester.widget<EditableText>(
+      find.descendant(of: transferField, matching: find.byType(EditableText)),
+    );
+    expect(editable.maxLines, isNull);
+    expect(editable.textInputAction, TextInputAction.newline);
+    await tester.enterText(
+      transferField,
+      '2026/27，20，家乡俱乐部，欧洲新星队\n'
+      '2034/35；28；欧洲新星队；世界全明星',
+    );
 
     await tester.scrollUntilVisible(
       find.text('生成梦想球员档案'),
@@ -192,7 +210,8 @@ void main() {
     expect(find.textContaining('训练负荷'), findsNothing);
     expect(find.textContaining('伤病风险'), findsNothing);
     expect(find.textContaining('青训体系里度过了数年'), findsOneWidget);
-    expect(find.textContaining('你的选择：'), findsWidgets);
+    expect(find.textContaining('你要做：'), findsWidgets);
+    expect(find.textContaining('确认结果：'), findsWidgets);
   });
 }
 

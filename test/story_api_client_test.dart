@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:player_simulator/domain/app_settings.dart';
+import 'package:player_simulator/services/life_simulator.dart';
 import 'package:player_simulator/services/random_career_generator.dart';
 import 'package:player_simulator/services/story_api_client.dart';
 import 'package:player_simulator/services/story_transport.dart';
@@ -28,6 +29,25 @@ void main() {
     );
 
     expect(client.usesDemo, isTrue);
+  });
+
+  test('life-mode prompt uses annual snapshots without exposing scores', () {
+    final simulator = LifeSimulator(
+      nationality: '中国',
+      position: '中前卫',
+      random: Random(31),
+    );
+    while (!simulator.isComplete) {
+      simulator.choose(simulator.decisions.length, 0);
+    }
+    final profile = simulator.finish(name: '逐年快照测试');
+
+    final prompt = StoryPromptBuilder.build(profile);
+
+    expect(prompt, contains('逐年模拟快照（仅供写作推理'));
+    expect(prompt, contains(profile.careerYearSnapshots.first.season));
+    expect(prompt, contains('不得在正文直接报出隐藏评分'));
+    expect(prompt, contains('退役原因：'));
   });
 
   test(

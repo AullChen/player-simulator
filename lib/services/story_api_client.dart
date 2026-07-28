@@ -414,7 +414,7 @@ class _StoryApiRequest {
 }
 
 abstract final class StoryPromptBuilder {
-  static const version = 'football-biography-v2';
+  static const version = 'football-biography-v3';
 
   static String build(PlayerProfile profile, {String language = 'zh-CN'}) {
     final isEnglish = language.toLowerCase().startsWith('en');
@@ -450,6 +450,27 @@ abstract final class StoryPromptBuilder {
                     : '${item.season}：${item.type}，缺阵 ${item.daysAbsent} 天',
               )
               .join('\n');
+    final annualSnapshots = profile.careerYearSnapshots.isEmpty
+        ? (isEnglish
+              ? 'No annual simulation snapshots supplied.'
+              : '未提供逐年模拟快照。')
+        : profile.careerYearSnapshots
+              .map(
+                (item) => isEnglish
+                    ? '${item.season}, age ${item.age}, ${item.club}, '
+                          '${item.squadRole}: overall ${item.overallRating}, '
+                          'technical ${item.technical}, physical ${item.physical}, '
+                          'mental ${item.mental}, fitness ${item.fitness}, '
+                          'morale ${item.morale}, reputation ${item.reputation}; '
+                          '${item.keyEvent}'
+                    : '${item.season}，${item.age} 岁，${item.club}，'
+                          '${item.squadRole}：综合 ${item.overallRating}，'
+                          '技术 ${item.technical}，身体 ${item.physical}，'
+                          '心智 ${item.mental}，竞技状态 ${item.fitness}，'
+                          '士气 ${item.morale}，声望 ${item.reputation}；'
+                          '${item.keyEvent}',
+              )
+              .join('\n');
 
     if (isEnglish) {
       return '''
@@ -462,12 +483,14 @@ FACTUAL RULES
 - You may add restrained sensory details and connective moments only when they do not create a new factual claim.
 - Preserve chronology. Ages, seasons, clubs, transfers, contract dates, appearances, goals and honours must not contradict one another.
 - Never expose internal ratings, probability weights, character-model attributes, training-load values, or game mechanics.
+- Annual snapshots are private writing evidence. Convert their year-to-year changes into form, role, confidence, recovery and training consequences; never print their hidden numerical ratings.
 
 WRITING BRIEF
 - Write 900–1,300 words in natural magazine-feature prose, with no bullet list and no headings.
 - Open on one concrete football moment, then move chronologically through academy entry, professional debut, club changes, the peak years, injuries or setbacks, international football, and retirement.
 - Give transfers a believable dramatic function based only on the supplied chronology: opportunity, adaptation, competition for a place, recovery, or a final chapter.
 - Translate statistics into human consequences. Use only a few decisive numbers rather than reciting every field.
+- Give important seasons their own texture. Use annual snapshots to show gradual improvement, a plateau, lost sharpness, recovery, changing squad status or reputation without turning the story into a season-by-season ledger.
 - Vary sentence length and paragraph rhythm. Prefer precise football actions and places over generic phrases such as “against all odds”, “destiny”, or “legend was born”.
 - Let success and failure coexist. End with a specific image that echoes the opening rather than a generic statement about dreams.
 - Output the story only.
@@ -477,6 +500,7 @@ Player: ${profile.name}; ${profile.nationality}; ${profile.primaryPosition}; ${p
 Born: ${profile.birthDate}, ${profile.birthPlace}
 Academy: ${profile.academy}, entered at ${profile.academyEntryAge}
 Professional debut: age ${profile.debutAge}; retirement: age ${profile.retirementAge}
+Retirement reason: ${profile.retirementReason}; ${profile.retirementContext}
 Career totals: ${profile.stats.appearances} appearances, ${profile.stats.goals} goals, ${profile.stats.assists} assists
 International: ${profile.nationalTeam}, ${profile.stats.nationalCaps} caps, ${profile.stats.nationalGoals} goals
 Honours: ${profile.stats.championships.join('; ')}
@@ -490,6 +514,9 @@ $transfers
 
 INJURIES
 $injuries
+
+ANNUAL SIMULATION SNAPSHOTS — PRIVATE WRITING EVIDENCE
+$annualSnapshots
 
 COMPLETE CANONICAL PLAYER JSON
 $canonicalPlayerJson
@@ -506,12 +533,14 @@ $canonicalPlayerJson
 - 可以加入克制的感官细节和过场动作，但这些细节不能形成新的事实断言。
 - 严格保持时间顺序；年龄、赛季、俱乐部、转会、合同日期、出场、进球和荣誉不得互相矛盾。
 - 不得向读者透露能力值、人物模型、概率权重、训练负荷、伤病风险或任何游戏机制。
+- 逐年快照是仅供写作使用的内部证据。把年度数值变化转译为状态、角色、信心、恢复和训练后果，不得在正文直接报出隐藏评分。
 
 写作要求
 - 使用自然连贯的中文足球杂志特写体，约 1800–2600 字，不使用项目符号和小标题。
 - 从一个具体的足球瞬间开场，再按时间推进青训入营、职业首秀、俱乐部变化、巅峰阶段、伤病或低谷、国家队经历与退役。
 - 转会只能依据现有时间线赋予戏剧功能，例如争取机会、适应新环境、位置竞争、伤愈回归或寻找最后一站。
 - 把统计数字写成人的处境，只选择少量关键数字进入正文，不要逐字段报表。
+- 让重要赛季拥有各自的质感；依据逐年快照写出进步、平台期、锐度下降、伤愈恢复、队内角色或声望变化，但不要机械地逐赛季点名。
 - 句子长短和段落节奏要有变化，多写具体的足球动作、天气、草皮、看台和训练日常，少用“命运”“奇迹”“传奇就此诞生”“一路披荆斩棘”等套话。
 - 成功与失败都要留下痕迹。结尾用一个与开场呼应的具体画面收束，不要泛泛谈梦想或人生。
 - 只输出故事正文。
@@ -521,6 +550,7 @@ $canonicalPlayerJson
 出生：${profile.birthDate}，${profile.birthPlace}
 青训：${profile.academy}，${profile.academyEntryAge} 岁进入
 职业入口：${profile.debutAge} 岁首秀；${profile.retirementAge} 岁退役
+退役原因：${profile.retirementReason}；${profile.retirementContext}
 俱乐部总计：${profile.stats.appearances} 场、${profile.stats.goals} 球、${profile.stats.assists} 次助攻
 国家队：${profile.nationalTeam}，${profile.stats.nationalCaps} 场、${profile.stats.nationalGoals} 球
 冠军：${profile.stats.championships.join('；')}
@@ -534,6 +564,9 @@ $transfers
 
 伤病
 $injuries
+
+逐年模拟快照（仅供写作推理，不得直接展示隐藏评分）
+$annualSnapshots
 
 完整球员档案 JSON（同样属于唯一事实来源）
 $canonicalPlayerJson

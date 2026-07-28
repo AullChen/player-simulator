@@ -376,7 +376,7 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
 
   List<String> _csv(String key) {
     return _text(key)
-        .split(RegExp(r'[,，]'))
+        .split(RegExp(r'[,，;；\r\n]+'))
         .map((item) => item.trim())
         .where((item) => item.isNotEmpty)
         .toList();
@@ -386,16 +386,19 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
     return [
       for (final (lineNumber, parts) in _structuredRows(
         'transferHistory',
-        expectedFields: 6,
-        format: '赛季|年龄|原俱乐部|新俱乐部|形式|费用',
+        minimumFields: 4,
+        maximumFields: 6,
+        format: '赛季|年龄|原俱乐部|新俱乐部[|形式|费用]',
       ))
         TransferRecord(
           season: parts[0],
           age: _rowInt(parts[1], '转会记录', lineNumber),
           fromClub: parts[2],
           toClub: parts[3],
-          type: parts[4],
-          feeMillions: _rowDouble(parts[5], '转会记录', lineNumber),
+          type: parts.length >= 5 && parts[4].isNotEmpty ? parts[4] : '永久转会',
+          feeMillions: parts.length >= 6 && parts[5].isNotEmpty
+              ? _rowDouble(parts[5], '转会记录', lineNumber)
+              : 0,
         ),
     ];
   }
@@ -404,14 +407,21 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
     return [
       for (final (lineNumber, parts) in _structuredRows(
         'injuryHistory',
-        expectedFields: 4,
-        format: '赛季|伤病|缺阵天数|错过场次',
+        minimumFields: 2,
+        maximumFields: 4,
+        format: '赛季|伤病[|缺阵天数|错过场次]',
       ))
         InjurySpell(
           season: parts[0],
           type: parts[1],
-          daysAbsent: _rowInt(parts[2], '伤病记录', lineNumber),
-          matchesMissed: _rowInt(parts[3], '伤病记录', lineNumber),
+          daysAbsent: parts.length >= 3 && parts[2].isNotEmpty
+              ? _rowInt(parts[2], '伤病记录', lineNumber)
+              : 0,
+          matchesMissed: parts.length >= 4 && parts[3].isNotEmpty
+              ? _rowInt(parts[3], '伤病记录', lineNumber)
+              : parts.length >= 3 && parts[2].isNotEmpty
+              ? max(0, (_rowInt(parts[2], '伤病记录', lineNumber) / 7.2).round())
+              : 0,
         ),
     ];
   }
@@ -420,7 +430,8 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
     return [
       for (final (lineNumber, parts) in _structuredRows(
         'marketValueHistory',
-        expectedFields: 2,
+        minimumFields: 2,
+        maximumFields: 2,
         format: '年龄|百万欧元',
       ))
         MarketValuePoint(
@@ -434,22 +445,24 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
     return [
       for (final (lineNumber, parts) in _structuredRows(
         'competitionStats',
-        expectedFields: 5,
-        format: '赛事|出场|进球|助攻|分钟',
+        minimumFields: 1,
+        maximumFields: 5,
+        format: '赛事[|出场|进球|助攻|分钟]',
       ))
         CompetitionStats(
           competition: parts[0],
-          appearances: _rowInt(parts[1], '分赛事统计', lineNumber),
-          goals: _rowInt(parts[2], '分赛事统计', lineNumber),
-          assists: _rowInt(parts[3], '分赛事统计', lineNumber),
-          minutesPlayed: _rowInt(parts[4], '分赛事统计', lineNumber),
+          appearances: _optionalRowInt(parts, 1, '分赛事统计', lineNumber),
+          goals: _optionalRowInt(parts, 2, '分赛事统计', lineNumber),
+          assists: _optionalRowInt(parts, 3, '分赛事统计', lineNumber),
+          minutesPlayed: _optionalRowInt(parts, 4, '分赛事统计', lineNumber),
         ),
     ];
   }
 
   List<(int, List<String>)> _structuredRows(
     String key, {
-    required int expectedFields,
+    required int minimumFields,
+    required int maximumFields,
     required String format,
   }) {
     final lines = _text(key).split(RegExp(r'\r?\n'));
@@ -457,17 +470,43 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
     for (var index = 0; index < lines.length; index++) {
       final line = lines[index].trim();
       if (line.isEmpty) continue;
-      final parts = line.split('|').map((part) => part.trim()).toList();
-      if (parts.length != expectedFields || parts.any((part) => part.isEmpty)) {
-        throw FormatException('第 ${index + 1} 行格式错误，应为：$format');
+      final parts = _splitStructuredLine(line);
+      final requiredParts = parts.take(minimumFields);
+      if (parts.length < minimumFields ||
+          parts.length > maximumFields ||
+          requiredParts.any((part) => part.isEmpty)) {
+        throw FormatException(
+          '第 ${index + 1} 行无法识别。可用 |、逗号、分号或 Tab 分隔，格式：$format',
+        );
       }
       rows.add((index + 1, parts));
     }
     return rows;
   }
 
+  List<String> _splitStructuredLine(String line) {
+    final separator = line.contains('|')
+        ? RegExp(r'\|')
+        : line.contains('\t')
+        ? RegExp(r'\t')
+        : line.contains('；') || line.contains(';')
+        ? RegExp(r'[;；]')
+        : RegExp(r'[,，]');
+    return line.split(separator).map((part) => part.trim()).toList();
+  }
+
+  int _optionalRowInt(
+    List<String> parts,
+    int index,
+    String label,
+    int lineNumber,
+  ) {
+    if (parts.length <= index || parts[index].isEmpty) return 0;
+    return _rowInt(parts[index], label, lineNumber);
+  }
+
   int _rowInt(String value, String label, int lineNumber) {
-    final parsed = int.tryParse(value);
+    final parsed = double.tryParse(_numericText(value))?.round();
     if (parsed == null) {
       throw FormatException('$label第 $lineNumber 行包含无效整数。');
     }
@@ -475,11 +514,15 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
   }
 
   double _rowDouble(String value, String label, int lineNumber) {
-    final parsed = double.tryParse(value);
+    final parsed = double.tryParse(_numericText(value));
     if (parsed == null) {
       throw FormatException('$label第 $lineNumber 行包含无效数字。');
     }
     return parsed;
+  }
+
+  String _numericText(String value) {
+    return RegExp(r'-?\d+(?:\.\d+)?').firstMatch(value)?.group(0) ?? value;
   }
 
   @override
@@ -502,7 +545,8 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
               Text(
                 widget.returnProfile
                     ? '这里载入了刚才的全部抽取结果。保存前会检查青训、首秀、转会、合同和退役年份是否互相一致。'
-                    : '下面的字段会原样进入故事生成请求。俱乐部用逗号分隔；结构化记录每行一条，用“|”分隔。',
+                    : '下面的字段会进入故事生成请求。多项内容可用逗号、分号或换行分隔；'
+                          '结构化记录每行一条，支持“|”、逗号、分号或 Tab。',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 24),
@@ -565,7 +609,9 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
               const SizedBox(height: 14),
               _FormSection(
                 title: '能力与生涯轨迹',
-                description: '转会：赛季|年龄|原俱乐部|新俱乐部|形式|费用',
+                description:
+                    '转会至少填写：赛季|年龄|原俱乐部|新俱乐部；形式和费用可省略。'
+                    '也支持逗号、分号或 Tab。',
                 children: [
                   _field('debut', '首秀年龄', numeric: true),
                   _field('retirement', '退役年龄', numeric: true),
@@ -597,7 +643,9 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
               const SizedBox(height: 14),
               _FormSection(
                 title: '数据与荣誉',
-                description: '分赛事：赛事|出场|进球|助攻|分钟',
+                description:
+                    '分赛事：赛事[|出场|进球|助攻|分钟]，后面的统计可省略；'
+                    '荣誉可用逗号、分号或换行分隔。',
                 children: [
                   _field('appearances', '俱乐部出场', numeric: true),
                   _field('starts', '首发', numeric: true),
@@ -647,15 +695,22 @@ class _DreamModeScreenState extends State<DreamModeScreen> {
     bool optional = false,
     int lines = 1,
   }) {
+    final multiline = lines > 1;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
         controller: _controllers[key],
         decoration: InputDecoration(labelText: label),
-        maxLines: lines,
-        keyboardType: numeric || decimal
+        minLines: multiline ? lines : 1,
+        maxLines: multiline ? null : 1,
+        keyboardType: multiline
+            ? TextInputType.multiline
+            : numeric || decimal
             ? const TextInputType.numberWithOptions(decimal: true)
             : TextInputType.text,
+        textInputAction: multiline
+            ? TextInputAction.newline
+            : TextInputAction.next,
         validator: optional
             ? null
             : numeric || decimal
