@@ -4,6 +4,7 @@ import '../data/football_catalog.dart';
 import '../data/probability_sources.dart';
 import '../domain/player_profile.dart';
 import '../domain/weighted_value.dart';
+import 'peak_rating_distribution.dart';
 
 class RandomCareerGenerator {
   RandomCareerGenerator({Random? random}) : _random = random ?? Random();
@@ -136,50 +137,11 @@ class RandomCareerGenerator {
   /// Peak bands are game-balanced first; the legacy development curve remains
   /// the conditional distribution within the selected band.
   ({int initial, int peak}) sampleRatings(int academyTier) {
-    final base = switch (academyTier) {
-      1 => 62,
-      2 => 59,
-      3 => 55,
-      _ => 51,
-    };
-    final bandRoll = _random.nextDouble();
-    final band = bandRoll < 0.50
-        ? _PeakRatingBand.elite
-        : bandRoll < 0.90
-        ? _PeakRatingBand.established
-        : _PeakRatingBand.developmental;
-    final candidates = <({int initial, int peak, double weight})>[];
-    for (var initial = base; initial < base + 9; initial++) {
-      for (final growthBand in _legacyGrowthBands) {
-        for (
-          var growth = growthBand.minimum;
-          growth < growthBand.minimum + growthBand.count;
-          growth++
-        ) {
-          final peak = min(96, initial + growth);
-          if (_isInPeakBand(peak, band)) {
-            candidates.add((
-              initial: initial,
-              peak: peak,
-              weight: growthBand.weight / growthBand.count,
-            ));
-          }
-        }
-      }
-    }
-    final totalWeight = candidates.fold<double>(
-      0,
-      (sum, candidate) => sum + candidate.weight,
+    final sample = PeakRatingDistribution.sample(
+      random: _random,
+      academyTier: academyTier,
     );
-    var cursor = _random.nextDouble() * totalWeight;
-    for (final candidate in candidates) {
-      cursor -= candidate.weight;
-      if (cursor <= 0) {
-        return (initial: candidate.initial, peak: candidate.peak);
-      }
-    }
-    final fallback = candidates.last;
-    return (initial: fallback.initial, peak: fallback.peak);
+    return (initial: sample.initial, peak: sample.peak);
   }
 
   int _heightFor(String position) {
@@ -613,20 +575,3 @@ class RandomCareerGenerator {
 
   T _pick<T>(List<T> values) => values[_random.nextInt(values.length)];
 }
-
-enum _PeakRatingBand { elite, established, developmental }
-
-bool _isInPeakBand(int rating, _PeakRatingBand band) => switch (band) {
-  _PeakRatingBand.elite => rating >= 80,
-  _PeakRatingBand.established => rating >= 70 && rating < 80,
-  _PeakRatingBand.developmental => rating < 70,
-};
-
-const _legacyGrowthBands =
-    <({int minimum, int count, double weight})>[
-      (minimum: 27, count: 5, weight: 2),
-      (minimum: 20, count: 7, weight: 10),
-      (minimum: 13, count: 8, weight: 30),
-      (minimum: 7, count: 7, weight: 40),
-      (minimum: 2, count: 6, weight: 18),
-    ];

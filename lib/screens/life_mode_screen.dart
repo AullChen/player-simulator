@@ -94,15 +94,27 @@ class _CareerStage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _StageProgress(
-          current: simulator.decisions.length,
-          total: simulator.totalStages,
-          age: stage.age,
-          openEnded: simulator.isOpenEnded,
-          density: context.tr(
-            simulator.density.label,
-            simulator.density.labelEn,
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _StageProgress(
+                current: simulator.decisions.length,
+                total: simulator.totalStages,
+                age: stage.age,
+                openEnded: simulator.isOpenEnded,
+                density: context.tr(
+                  simulator.density.label,
+                  simulator.density.labelEn,
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            _OverallRatingStamp(
+              rating: simulator.overallRating,
+              change: simulator.lastOverallChange,
+            ),
+          ],
         ),
         const SizedBox(height: 24),
         SectionLabel('AGE ${stage.age}'),
@@ -129,10 +141,10 @@ class _CareerStage extends StatelessWidget {
               ),
             ),
             _PoolChip(
-              icon: Icons.style_outlined,
+              icon: Icons.folder_copy_outlined,
               text: context.tr(
-                '本轮有 ${stage.choices.length} 条可选道路',
-                '${stage.choices.length} paths this round',
+                '本轮主题：${stage.categoryZh}',
+                'Theme: ${stage.categoryEn}',
               ),
             ),
           ],
@@ -153,6 +165,93 @@ class _CareerStage extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _OverallRatingStamp extends StatelessWidget {
+  const _OverallRatingStamp({required this.rating, required this.change});
+
+  final int rating;
+  final int? change;
+
+  @override
+  Widget build(BuildContext context) {
+    final changeText = change == null
+        ? context.tr('当前能力', 'CURRENT')
+        : change! > 0
+        ? context.tr('选择后 +$change', 'AFTER +$change')
+        : change! < 0
+        ? context.tr('选择后 $change', 'AFTER $change')
+        : context.tr('选择后 ±0', 'AFTER ±0');
+    final accent = rating >= 80
+        ? const Color(0xFFE5BE6A)
+        : const Color(0xFF9AB6D2);
+    return Semantics(
+      label: context.tr('当前总评 $rating', 'Current overall rating $rating'),
+      child: Transform.rotate(
+        angle: -0.018,
+        child: Container(
+          width: 88,
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 9),
+          decoration: BoxDecoration(
+            color: AppColors.ink,
+            border: Border(
+              left: BorderSide(color: accent, width: 4),
+              top: BorderSide(color: accent),
+              right: BorderSide(color: accent),
+              bottom: BorderSide(color: accent),
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x1F10243B),
+                blurRadius: 8,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.tr('球探总评', 'SCOUT OVR'),
+                style: TextStyle(
+                  color: accent,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              AnimatedSwitcher(
+                duration: MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : const Duration(milliseconds: 240),
+                child: Text(
+                  '$rating',
+                  key: ValueKey(rating),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 31,
+                    height: 1,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                changeText,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 8,
+                  height: 1.2,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

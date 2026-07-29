@@ -5,6 +5,7 @@ import '../data/life_event_pool.dart';
 import '../data/probability_sources.dart';
 import '../domain/player_attributes.dart';
 import '../domain/player_profile.dart';
+import 'peak_rating_distribution.dart';
 
 enum CareerDecisionDensity {
   random,
@@ -149,6 +150,10 @@ class LifeStage {
   const LifeStage({
     required this.age,
     required this.phase,
+    required this.theme,
+    required this.categoryZh,
+    required this.categoryEn,
+    required this.scenarioId,
     required this.titleZh,
     required this.titleEn,
     required this.contextZh,
@@ -160,6 +165,10 @@ class LifeStage {
 
   final int age;
   final CareerPhase phase;
+  final LifeEventTheme theme;
+  final String categoryZh;
+  final String categoryEn;
+  final String scenarioId;
   final String titleZh;
   final String titleEn;
   final String contextZh;
@@ -188,6 +197,7 @@ enum LifeRetirementCause {
   noClub,
   age,
   personal,
+  voluntary,
 }
 
 class LifeRetirementOutcome {
@@ -219,7 +229,17 @@ class LifeSimulator {
        _initialAttributes =
            initialAttributes ??
            _createInitialAttributes(position, random ?? Random()) {
+    final ratingSample = PeakRatingDistribution.sample(
+      random: _random,
+      academyTier: 1,
+    );
+    _peakRatingBand = ratingSample.band;
+    _targetPeakRating = ratingSample.peak;
     attributes = _initialAttributes;
+    _initialOverallRating = min(
+      _rawOverall(_initialAttributes),
+      _targetPeakRating - 4,
+    );
     _stageAges = density == CareerDecisionDensity.random
         ? <int>[17]
         : List<int>.unmodifiable(density.ages);
@@ -260,16 +280,23 @@ class LifeSimulator {
   late String _preferredFoot;
   late LifeStage _currentStage;
   late int _peakOverall;
+  late final int _initialOverallRating;
+  late final PeakRatingBand _peakRatingBand;
+  late final int _targetPeakRating;
+  LifeEventTheme? _lastTheme;
+  String? _lastScenarioId;
   LifeRetirementOutcome? _retirementOutcome;
+  int? _lastOverallChange;
   int trainingLoad = 12;
   int injuryRisk = 8;
 
   int get totalStages => _stageAges.length;
   bool get isOpenEnded => density == CareerDecisionDensity.random;
-  bool get isComplete => isOpenEnded
-      ? _retirementOutcome != null
-      : decisions.length == totalStages;
+  bool get isComplete =>
+      _retirementOutcome != null ||
+      (!isOpenEnded && decisions.length == totalStages);
   LifeRetirementOutcome? get retirementOutcome => _retirementOutcome;
+  int? get lastOverallChange => _lastOverallChange;
   LifeStage get currentStage {
     if (isComplete) throw StateError('The career is already complete.');
     return _currentStage;
@@ -278,9 +305,17 @@ class LifeSimulator {
   String get currentClub => _currentClub.name;
 
   int get overallRating {
-    final technical = attributes[PlayerAttribute.technique] * 0.28;
+    if (decisions.isEmpty) return _initialOverallRating;
+    return min(
+      _rawOverall(attributes),
+      PeakRatingDistribution.maximum(_peakRatingBand),
+    );
+  }
+
+  static int _rawOverall(PlayerAttributes model) {
+    final technical = model[PlayerAttribute.technique] * 0.28;
     final physical =
-        attributes.average(const [
+        model.average(const [
           PlayerAttribute.speed,
           PlayerAttribute.strength,
           PlayerAttribute.stamina,
@@ -288,7 +323,7 @@ class LifeSimulator {
         ]) *
         0.25;
     final mental =
-        attributes.average(const [
+        model.average(const [
           PlayerAttribute.intelligence,
           PlayerAttribute.decisionMaking,
           PlayerAttribute.discipline,
@@ -297,13 +332,10 @@ class LifeSimulator {
         ]) *
         0.27;
     final limbs =
-        max(
-          attributes[PlayerAttribute.leftLeg],
-          attributes[PlayerAttribute.rightLeg],
-        ) *
+        max(model[PlayerAttribute.leftLeg], model[PlayerAttribute.rightLeg]) *
         0.12;
     final fortune =
-        attributes.average(const [
+        model.average(const [
           PlayerAttribute.morale,
           PlayerAttribute.reputation,
           PlayerAttribute.luck,
@@ -355,18 +387,26 @@ class LifeSimulator {
 
     final stage = _currentStage;
     final choice = stage.choices[choiceIndex];
+    final previousOverall = overallRating;
     attributes = attributes.apply(choice.delta);
     trainingLoad = (trainingLoad + choice.trainingLoadDelta).clamp(0, 100);
     injuryRisk = (injuryRisk + choice.injuryRiskDelta).clamp(0, 100);
 
-    if (choice.causesTransfer) {
+    if (choice.actionId == 'voluntary_retirement') {
+      _retirementOutcome = _retirementStory(
+        stage.age,
+        LifeRetirementCause.voluntary,
+      );
+    } else if (choice.causesTransfer) {
       _makeTransfer(stage.age, choice.actionId == 'loan');
     }
-    _maybeRecordInjury(stage, choice);
+    if (choice.actionId != 'voluntary_retirement') {
+      _maybeRecordInjury(stage, choice);
+    }
     decisions.add(
       LifeDecision(stage: stage, choice: choice, club: _currentClub.name),
     );
-    if (density == CareerDecisionDensity.random) {
+    if (density == CareerDecisionDensity.random && _retirementOutcome == null) {
       _maybeTriggerRetirement(stage, choice);
       if (_retirementOutcome == null) {
         if (stage.age >= 60) {
@@ -379,6 +419,7 @@ class LifeSimulator {
         }
       }
     }
+    _lastOverallChange = overallRating - previousOverall;
     _peakOverall = max(_peakOverall, overallRating);
     _checkpoints.add(
       _LifeCheckpoint(
@@ -402,9 +443,13 @@ class LifeSimulator {
 
     final retirementAge =
         (_retirementOutcome?.age ?? _stageAges.last.clamp(34, 39)).toInt();
-    final initialRating = _ratingFor(_initialAttributes);
+    final initialRating = _initialOverallRating;
     final finalRating = overallRating.clamp(45, 94);
-    final peakRating = max(_peakOverall, max(initialRating + 4, finalRating));
+    final observedPeak = max(_peakOverall, max(initialRating + 4, finalRating));
+    final peakRating = max(_targetPeakRating, observedPeak).clamp(
+      PeakRatingDistribution.minimum(_peakRatingBand),
+      PeakRatingDistribution.maximum(_peakRatingBand),
+    );
     final birthYear = 2011 - _stageAges.first;
     final debutAge = min(16 + _random.nextInt(3), max(16, retirementAge - 1));
     final career = [
@@ -439,7 +484,7 @@ class LifeSimulator {
     final nationalCaps = reputation < 48
         ? 0
         : min(careerYears * 12, ((reputation - 43) * 1.9).round());
-    final championships = max(0, (reputation + _peakOverall - 115) ~/ 12);
+    final championships = max(0, (reputation + peakRating - 115) ~/ 12);
     final totalFees = _transfers.fold<double>(
       0,
       (total, transfer) => total + transfer.feeMillions,
@@ -467,7 +512,8 @@ class LifeSimulator {
       ],
       personalHonors: [
         if (reputation >= 65) '联赛最佳阵容',
-        if (reputation >= 76) '年度最佳球员候选',
+        if (peakRating >= 82) '年度最佳球员候选',
+        if (peakRating >= 90) '世界年度最佳球员',
         if (attributes[PlayerAttribute.teamwork] >= 72) '俱乐部功勋球员',
       ],
     );
@@ -519,7 +565,7 @@ class LifeSimulator {
       debutAge: debutAge,
       retirementAge: retirementAge,
       initialRating: initialRating,
-      peakRating: peakRating.clamp(initialRating + 4, 96),
+      peakRating: peakRating,
       finalRating: finalRating,
       playStyle:
           (FootballCatalog.positionStyles[position] ?? const ['全能型']).first,
@@ -557,14 +603,48 @@ class LifeSimulator {
     final phase = LifeEventPool.phaseForAge(age);
     final raw = LifeEventPool.rawOptionsFor(phase);
     final eligible = raw.where(_isEligible).toList();
-    final source = eligible.length >= 5 ? eligible : raw;
-    final visibleCount = 3 + _random.nextInt(3);
-    final selected = _weightedWithoutReplacement(source, visibleCount);
+    final theme = _pickStageTheme(raw, eligible);
+    final themeEligible = eligible
+        .where((candidate) => candidate.scenario.theme == theme)
+        .toList();
+    final themeRaw = raw
+        .where((candidate) => candidate.scenario.theme == theme)
+        .toList();
+    final scenarioSource = themeEligible.length >= 3 ? themeEligible : themeRaw;
+    final scenario = _pickScenario(scenarioSource);
+    final eligibleActions = themeEligible
+        .where((candidate) => candidate.scenario.id == scenario.id)
+        .toList();
+    final rawActions = themeRaw
+        .where((candidate) => candidate.scenario.id == scenario.id)
+        .toList();
+    final actionSource = eligibleActions.length >= 3
+        ? eligibleActions
+        : rawActions;
+    final visibleCount = min(actionSource.length, 3 + _random.nextInt(3));
+    final offerRetirement = _shouldOfferVoluntaryRetirement(age, theme);
+    final regularCount = max(2, visibleCount - (offerRetirement ? 1 : 0));
+    final selected = _weightedWithoutReplacement(
+      actionSource,
+      min(actionSource.length, regularCount),
+    );
+    if (offerRetirement) {
+      selected.insert(
+        _random.nextInt(selected.length + 1),
+        LifeCandidate(scenario: scenario, action: _voluntaryRetirementAction),
+      );
+    }
+    _lastTheme = theme;
+    _lastScenarioId = scenario.id;
     return LifeStage(
       age: age,
       phase: phase,
-      titleZh: _phaseTitleZh(phase),
-      titleEn: _phaseTitleEn(phase),
+      theme: theme,
+      categoryZh: _themeLabelZh(theme),
+      categoryEn: _themeLabelEn(theme),
+      scenarioId: scenario.id,
+      titleZh: scenario.titleZh,
+      titleEn: scenario.titleEn,
       contextZh: _stageContextZh(index, age),
       contextEn: _stageContextEn(index, age),
       candidatePoolSize: raw.length,
@@ -577,8 +657,8 @@ class LifeSimulator {
             theme: candidate.scenario.theme,
             titleZh: _choiceTitleZh(candidate),
             titleEn: _choiceTitleEn(candidate),
-            backgroundZh: _choiceBackgroundZh(candidate),
-            backgroundEn: _choiceBackgroundEn(candidate),
+            backgroundZh: _choiceBackgroundZh(candidate, age),
+            backgroundEn: _choiceBackgroundEn(candidate, age),
             decisionZh: _decisionStoryZh(candidate),
             decisionEn: _decisionStoryEn(candidate),
             retirementProbability: _retirementProbabilityForAction(
@@ -587,7 +667,7 @@ class LifeSimulator {
             ),
             accidentProbability:
                 ProbabilitySources.severeOffPitchAccidentProxyPerYear,
-            delta: candidate.action.delta,
+            delta: _legendaryCareerDelta(candidate.action.delta),
             trainingLoadDelta: candidate.action.trainingLoadDelta,
             injuryRiskDelta: candidate.action.injuryRiskDelta,
             causesTransfer: candidate.action.causesTransfer,
@@ -624,9 +704,10 @@ class LifeSimulator {
       'community' => '把关注转向长期社区项目',
       'commercial' => '接受商业合作扩大影响力',
       'confront' => '公开强硬回应外界批评',
+      'voluntary_retirement' => '听从身体与内心，主动结束职业生涯',
       _ => action.titleZh,
     };
-    return '${candidate.scenario.titleZh}：$summary';
+    return summary;
   }
 
   String _choiceTitleEn(LifeCandidate candidate) {
@@ -657,12 +738,13 @@ class LifeSimulator {
       'community' => 'redirect the attention into community work',
       'commercial' => 'accept the partnership and grow your profile',
       'confront' => 'answer the criticism in public',
+      'voluntary_retirement' => 'leave the game on your own terms',
       _ => action.titleEn.toLowerCase(),
     };
-    return '${candidate.scenario.titleEn}: $summary';
+    return summary;
   }
 
-  String _choiceBackgroundZh(LifeCandidate candidate) {
+  String _choiceBackgroundZh(LifeCandidate candidate, int age) {
     final stakes = switch (candidate.scenario.theme) {
       LifeEventTheme.training => '教练组只给出一个训练周期来检验改变，下一阶段的定位取决于你如何使用这段时间。',
       LifeEventTheme.health => '队医、教练和你对风险的判断并不一致，眼前的出场机会与长期恢复发生了冲突。',
@@ -670,10 +752,24 @@ class LifeSimulator {
       LifeEventTheme.match => '比赛计划已经确定，但真正进入场上后，你必须决定以什么方式承担这一刻。',
       LifeEventTheme.publicLife => '场外的回应会被队友、俱乐部和公众同时看见，也会改变接下来彼此合作的方式。',
     };
-    return '你当时效力于${_currentClub.name}。${candidate.scenario.contextZh}$stakes';
+    final continuity = decisions.isEmpty
+        ? '这是你进入一线队后第一次必须亲自签字确认的决定。'
+        : '上一次你选择了“${decisions.last.choice.titleZh}”，'
+              '它已经改变了教练和队友看待你的方式。';
+    final status = switch ((overallRating, age, _injuries.isNotEmpty)) {
+      (>= 85, _, _) => '你正处在世界级表现区间，任何决定都会被当作核心球员的表态。',
+      (>= 76, _, _) => '你已经进入主力竞争的上游，俱乐部希望你承担更多责任。',
+      (_, > ProbabilitySources.manualRetirementReferenceAge, true) =>
+        '多年比赛和既往伤病让恢复变慢，职业生涯的下一步也被摆上桌面。',
+      (_, > ProbabilitySources.manualRetirementReferenceAge, false) =>
+        '你已经越过多数职业球员的常见退役区间，每个新赛季都需要重新评估代价。',
+      _ => '你仍在争取稳定位置，这次选择会直接影响下一阶段的机会。',
+    };
+    return '你当时 $age 岁，效力于${_currentClub.name}。'
+        '${candidate.scenario.contextZh}$stakes$continuity$status';
   }
 
-  String _choiceBackgroundEn(LifeCandidate candidate) {
+  String _choiceBackgroundEn(LifeCandidate candidate, int age) {
     final stakes = switch (candidate.scenario.theme) {
       LifeEventTheme.training =>
         'The staff will judge the change over one training cycle, and your '
@@ -691,8 +787,30 @@ class LifeSimulator {
         'Teammates, the club and the public will all see the response, which '
             'will shape how you work together next.',
     };
-    return 'You are playing for ${_currentClub.name}. '
-        '${candidate.scenario.contextEn} $stakes';
+    final continuity = decisions.isEmpty
+        ? 'This is the first first-team decision that requires your own '
+              'explicit approval.'
+        : 'Your previous choice—“${decisions.last.choice.titleEn}”—has already '
+              'changed how the staff and dressing room read your intentions.';
+    final status = switch ((overallRating, age, _injuries.isNotEmpty)) {
+      (>= 85, _, _) =>
+        'You are performing at world-class level, so every choice is read as '
+            'a statement from a cornerstone player.',
+      (>= 76, _, _) =>
+        'You are now near the top of the selection order and the club expects '
+            'greater responsibility.',
+      (_, > ProbabilitySources.manualRetirementReferenceAge, true) =>
+        'Years of matches and earlier injuries have slowed recovery, bringing '
+            'the next stage of your career into the discussion.',
+      (_, > ProbabilitySources.manualRetirementReferenceAge, false) =>
+        'You have moved beyond the common retirement range, so each new season '
+            'requires a fresh judgment of its cost.',
+      _ =>
+        'You are still fighting for a stable place, and this decision will '
+            'shape the next opportunity.',
+    };
+    return 'You are $age and playing for ${_currentClub.name}. '
+        '${candidate.scenario.contextEn} $stakes $continuity $status';
   }
 
   String _decisionStoryZh(LifeCandidate candidate) {
@@ -722,6 +840,8 @@ class LifeSimulator {
       'community' => '你把外界关注转向一项长期社区计划，承诺每周固定投入时间，并让俱乐部公开项目进展。',
       'commercial' => '你签下商业合作并确认拍摄日程，接受竞技准备时间被切分，以此扩大个人品牌和收入。',
       'confront' => '你通过公开采访正面反驳批评，点明争议中的责任方，并承担这番回应可能继续制造冲突。',
+      'voluntary_retirement' =>
+        '你要求俱乐部安排一次最终体检和坦诚会谈，随后亲自通知教练与队友：完成本赛季告别后，不再签署新的球员合同。',
       _ => '你选择了“${candidate.action.titleZh}”，并与相关人员确认了具体执行方式。',
     };
   }
@@ -803,6 +923,10 @@ class LifeSimulator {
       'confront' =>
         'You answer the criticism directly in public, name where responsibility '
             'lies and accept that the response may prolong the conflict.',
+      'voluntary_retirement' =>
+        'You request a final medical review and an honest meeting, then tell '
+            'the coach and dressing room yourself that this farewell season '
+            'will be your last as a professional player.',
       _ =>
         'You choose “${candidate.action.titleEn}” and agree the concrete '
             'implementation with everyone involved.',
@@ -855,6 +979,69 @@ class LifeSimulator {
         '$age, you lived with the consequences of '
         '“${previous.choice.titleEn}”. $transferText$physicalText '
         'A new mix of contracts, matches and relationships now demands a decision.';
+  }
+
+  LifeEventTheme _pickStageTheme(
+    List<LifeCandidate> raw,
+    List<LifeCandidate> eligible,
+  ) {
+    final themes = LifeEventTheme.values.where((theme) {
+      final eligibleActions = eligible
+          .where((candidate) => candidate.scenario.theme == theme)
+          .map((candidate) => candidate.action.id)
+          .toSet();
+      final rawActions = raw
+          .where((candidate) => candidate.scenario.theme == theme)
+          .map((candidate) => candidate.action.id)
+          .toSet();
+      return eligibleActions.length >= 3 || rawActions.length >= 3;
+    }).toList();
+    final weighted = [
+      for (final theme in themes)
+        (
+          theme: theme,
+          weight: themeWeight(theme) * (theme == _lastTheme ? 0.28 : 1.0),
+        ),
+    ];
+    final total = weighted.fold<double>(0, (sum, item) => sum + item.weight);
+    var cursor = _random.nextDouble() * total;
+    for (final item in weighted) {
+      cursor -= item.weight;
+      if (cursor <= 0) return item.theme;
+    }
+    return weighted.last.theme;
+  }
+
+  LifeScenarioSeed _pickScenario(List<LifeCandidate> candidates) {
+    final scenarios = <String, LifeScenarioSeed>{
+      for (final candidate in candidates)
+        candidate.scenario.id: candidate.scenario,
+    }.values.toList();
+    final fresh = scenarios
+        .where((scenario) => scenario.id != _lastScenarioId)
+        .toList();
+    final source = fresh.isEmpty ? scenarios : fresh;
+    return source[_random.nextInt(source.length)];
+  }
+
+  bool _shouldOfferVoluntaryRetirement(int age, LifeEventTheme theme) {
+    if (age <= ProbabilitySources.manualRetirementReferenceAge ||
+        (theme != LifeEventTheme.health && theme != LifeEventTheme.club)) {
+      return false;
+    }
+    final chance =
+        0.18 +
+        (age - ProbabilitySources.manualRetirementReferenceAge) * 0.045 +
+        _injuries.length * 0.06 +
+        max(0, 62 - attributes[PlayerAttribute.health]) / 340;
+    return _random.nextDouble() < chance.clamp(0.18, 0.72);
+  }
+
+  AttributeDelta _legendaryCareerDelta(AttributeDelta delta) {
+    return AttributeDelta({
+      for (final entry in delta.values.entries)
+        entry.key: entry.value > 0 ? (entry.value * 1.6).ceil() : entry.value,
+    });
   }
 
   bool _isEligible(LifeCandidate candidate) {
@@ -994,7 +1181,7 @@ class LifeSimulator {
   }
 
   double _retirementProbabilityForAction(int age, LifeActionSeed action) {
-    final projected = attributes.apply(action.delta);
+    final projected = attributes.apply(_legendaryCareerDelta(action.delta));
     final projectedInjuryRisk = (injuryRisk + action.injuryRiskDelta).clamp(
       0,
       100,
@@ -1201,6 +1388,21 @@ class LifeSimulator {
             'changed your relationship with football. After completing the '
             'season with ${_currentClub.name}, you chose to step away.',
       ),
+      LifeRetirementCause.voluntary => LifeRetirementOutcome(
+        age: age,
+        cause: cause,
+        titleZh: '在仍有选择时主动告别',
+        titleEn: 'Retired on your own terms',
+        contextZh:
+            '$age 岁时，你在${_currentClub.name}完成最终体检和赛季复盘。'
+            '俱乐部仍愿意讨论下一份合同，但你决定把告别留在自己手中，'
+            '亲自通知队友并完成最后一场主场比赛后退役。',
+        contextEn:
+            'At $age, you completed a final medical review and season debrief '
+            'with ${_currentClub.name}. The club was still willing to discuss '
+            'another contract, but you chose the timing yourself, told the '
+            'dressing room and retired after one last home match.',
+      ),
     };
   }
 
@@ -1272,14 +1474,6 @@ class LifeSimulator {
     final age = decisions[index].stage.age;
     final curve = age <= 29 ? progress : (1 - (age - 29) * 0.055);
     return (initial + (peak - initial) * curve).round().clamp(1, 99);
-  }
-
-  int _ratingFor(PlayerAttributes model) {
-    final original = attributes;
-    attributes = model;
-    final rating = overallRating;
-    attributes = original;
-    return rating;
   }
 
   ClubDefinition _pickInitialClub() {
@@ -1365,63 +1559,80 @@ class LifeSimulator {
   ) {
     final values = {
       for (final attribute in PlayerAttribute.values)
-        attribute: 42 + random.nextInt(18),
+        attribute: 55 + random.nextInt(16),
     };
-    values[PlayerAttribute.leftArm] = 45 + random.nextInt(15);
-    values[PlayerAttribute.rightArm] = 45 + random.nextInt(15);
+    values[PlayerAttribute.leftArm] = 55 + random.nextInt(15);
+    values[PlayerAttribute.rightArm] = 55 + random.nextInt(15);
     if (random.nextBool()) {
-      values[PlayerAttribute.leftLeg] = 62 + random.nextInt(16);
-      values[PlayerAttribute.rightLeg] = 42 + random.nextInt(16);
+      values[PlayerAttribute.leftLeg] = 70 + random.nextInt(16);
+      values[PlayerAttribute.rightLeg] = 55 + random.nextInt(15);
     } else {
-      values[PlayerAttribute.rightLeg] = 62 + random.nextInt(16);
-      values[PlayerAttribute.leftLeg] = 42 + random.nextInt(16);
+      values[PlayerAttribute.rightLeg] = 70 + random.nextInt(16);
+      values[PlayerAttribute.leftLeg] = 55 + random.nextInt(15);
     }
     switch (position) {
       case '门将':
-        values[PlayerAttribute.leftArm] = 68 + random.nextInt(15);
-        values[PlayerAttribute.rightArm] = 68 + random.nextInt(15);
-        values[PlayerAttribute.decisionMaking] = 58 + random.nextInt(14);
+        values[PlayerAttribute.leftArm] = 72 + random.nextInt(16);
+        values[PlayerAttribute.rightArm] = 72 + random.nextInt(16);
+        values[PlayerAttribute.decisionMaking] = 66 + random.nextInt(15);
         break;
       case '中后卫':
-        values[PlayerAttribute.strength] = 62 + random.nextInt(16);
-        values[PlayerAttribute.resilience] = 58 + random.nextInt(15);
+        values[PlayerAttribute.strength] = 70 + random.nextInt(16);
+        values[PlayerAttribute.resilience] = 66 + random.nextInt(15);
         break;
       case '边后卫':
       case '边锋':
-        values[PlayerAttribute.speed] = 65 + random.nextInt(16);
-        values[PlayerAttribute.stamina] = 58 + random.nextInt(16);
+        values[PlayerAttribute.speed] = 72 + random.nextInt(16);
+        values[PlayerAttribute.stamina] = 66 + random.nextInt(16);
         break;
       case '后腰':
       case '中前卫':
-        values[PlayerAttribute.stamina] = 62 + random.nextInt(16);
-        values[PlayerAttribute.teamwork] = 58 + random.nextInt(16);
+        values[PlayerAttribute.stamina] = 70 + random.nextInt(16);
+        values[PlayerAttribute.teamwork] = 66 + random.nextInt(16);
         break;
       case '前腰':
-        values[PlayerAttribute.technique] = 65 + random.nextInt(16);
-        values[PlayerAttribute.intelligence] = 58 + random.nextInt(16);
+        values[PlayerAttribute.technique] = 72 + random.nextInt(16);
+        values[PlayerAttribute.intelligence] = 66 + random.nextInt(16);
         break;
       case '中锋':
-        values[PlayerAttribute.strength] = 60 + random.nextInt(17);
-        values[PlayerAttribute.technique] = 60 + random.nextInt(17);
+        values[PlayerAttribute.strength] = 68 + random.nextInt(17);
+        values[PlayerAttribute.technique] = 68 + random.nextInt(17);
         break;
     }
     return PlayerAttributes(values);
   }
 }
 
-String _phaseTitleZh(CareerPhase phase) => switch (phase) {
-  CareerPhase.youth => '青训岔路',
-  CareerPhase.rise => '上升期抉择',
-  CareerPhase.prime => '巅峰期博弈',
-  CareerPhase.veteran => '生涯后段',
+String _themeLabelZh(LifeEventTheme theme) => switch (theme) {
+  LifeEventTheme.training => '训练与成长',
+  LifeEventTheme.health => '伤病与恢复',
+  LifeEventTheme.club => '转会与合同',
+  LifeEventTheme.match => '出场与比赛',
+  LifeEventTheme.publicLife => '更衣室与场外',
 };
 
-String _phaseTitleEn(CareerPhase phase) => switch (phase) {
-  CareerPhase.youth => 'Academy crossroads',
-  CareerPhase.rise => 'Choices on the rise',
-  CareerPhase.prime => 'Decisions at the peak',
-  CareerPhase.veteran => 'The final chapters',
+String _themeLabelEn(LifeEventTheme theme) => switch (theme) {
+  LifeEventTheme.training => 'Training & growth',
+  LifeEventTheme.health => 'Injury & recovery',
+  LifeEventTheme.club => 'Transfers & contracts',
+  LifeEventTheme.match => 'Selection & matches',
+  LifeEventTheme.publicLife => 'Dressing room & public life',
 };
+
+const _voluntaryRetirementAction = LifeActionSeed(
+  id: 'voluntary_retirement',
+  titleZh: '主动退役',
+  titleEn: 'Retire voluntarily',
+  descriptionZh: '在仍有合同和选择时，由球员亲自决定告别。',
+  descriptionEn: 'Choose the timing of retirement while another path remains.',
+  delta: AttributeDelta({
+    PlayerAttribute.resilience: 2,
+    PlayerAttribute.morale: 2,
+  }),
+  trainingLoadDelta: -30,
+  injuryRiskDelta: -20,
+  baseWeight: 1,
+);
 
 const _injuryTypes = ['肌肉拉伤', '脚踝扭伤', '膝部炎症', '腿筋伤势', '撞击伤'];
 

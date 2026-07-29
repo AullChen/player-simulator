@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:player_simulator/data/football_catalog.dart';
 import 'package:player_simulator/data/life_event_pool.dart';
+import 'package:player_simulator/data/probability_sources.dart';
 import 'package:player_simulator/domain/player_attributes.dart';
 import 'package:player_simulator/domain/player_profile.dart';
 import 'package:player_simulator/services/life_simulator.dart';
@@ -92,6 +93,50 @@ void main() {
   });
 
   group('LifeSimulator', () {
+    test('starts from a stronger legendary-player baseline', () {
+      var total = 0;
+      var lowest = 99;
+      for (var seed = 0; seed < 120; seed++) {
+        final simulator = LifeSimulator(
+          nationality: '中国',
+          position: '中前卫',
+          random: Random(seed),
+        );
+        total += simulator.overallRating;
+        lowest = min(lowest, simulator.overallRating);
+      }
+
+      expect(lowest, greaterThanOrEqualTo(57));
+      expect(total / 120, greaterThanOrEqualTo(64));
+    });
+
+    test('uses the same peak-rating bands as random careers', () {
+      const sampleSize = 1600;
+      var atLeast70 = 0;
+      var atLeast80 = 0;
+      final random = Random(8128);
+
+      for (var index = 0; index < sampleSize; index++) {
+        final simulator = LifeSimulator(
+          nationality: '中国',
+          position: '中前卫',
+          random: random,
+        );
+        while (!simulator.isComplete) {
+          final safeChoice = simulator.currentStage.choices.indexWhere(
+            (choice) => choice.actionId != 'voluntary_retirement',
+          );
+          simulator.choose(simulator.decisions.length, safeChoice);
+        }
+        final peak = simulator.finish().peakRating;
+        if (peak >= 70) atLeast70 += 1;
+        if (peak >= 80) atLeast80 += 1;
+      }
+
+      expect(atLeast70 / sampleSize, closeTo(0.90, 0.04));
+      expect(atLeast80 / sampleSize, closeTo(0.50, 0.04));
+    });
+
     test('requires choices in chronological order', () {
       final simulator = LifeSimulator(nationality: '中国', position: '中前卫');
 
@@ -105,6 +150,7 @@ void main() {
         position: '中锋',
         random: Random(7),
       );
+      final startingOverall = simulator.overallRating;
       for (var index = 0; index < simulator.totalStages; index++) {
         simulator.choose(index, 0);
       }
@@ -113,6 +159,7 @@ void main() {
 
       expect(player.name, '测试前锋');
       expect(player.career, hasLength(simulator.totalStages));
+      expect(player.initialRating, startingOverall);
       expect(player.peakRating, greaterThan(player.initialRating));
       expect(player.stats.goals, greaterThan(0));
       expect(player.characterAttributes, isNotNull);
@@ -150,7 +197,10 @@ void main() {
         expect(simulator.totalStages, entry.value);
         expect(simulator.currentStage.age, 15);
         for (var index = 0; index < simulator.totalStages; index++) {
-          simulator.choose(index, 0);
+          final regularChoice = simulator.currentStage.choices.indexWhere(
+            (choice) => choice.actionId != 'voluntary_retirement',
+          );
+          simulator.choose(index, regularChoice);
         }
         expect(simulator.decisions.last.stage.age, lessThanOrEqualTo(36));
       }
@@ -250,16 +300,36 @@ void main() {
           greaterThanOrEqualTo(100),
         );
         expect(simulator.currentStage.choices.length, inInclusiveRange(3, 5));
+        expect(
+          simulator.currentStage.choices.map((choice) => choice.theme).toSet(),
+          {simulator.currentStage.theme},
+        );
+        expect(
+          simulator.currentStage.choices
+              .map((choice) => choice.actionId)
+              .toSet(),
+          hasLength(simulator.currentStage.choices.length),
+        );
+        expect(simulator.currentStage.categoryZh, isNotEmpty);
         for (final choice in simulator.currentStage.choices) {
-          expect(choice.titleZh, contains('：'));
-          expect(choice.backgroundZh, contains('你当时效力于'));
+          expect(choice.titleZh, isNot(contains('：')));
+          expect(
+            choice.backgroundZh,
+            contains('你当时 ${simulator.currentStage.age} 岁'),
+          );
           expect(choice.decisionZh, startsWith('你'));
           expect(choice.decisionZh, isNot(contains('确认后')));
           if (choice.causesTransfer) {
             expect(choice.decisionZh, anyOf(contains('转会'), contains('租借')));
           }
         }
-        simulator.choose(index, index % simulator.currentStage.choices.length);
+        final regularChoices = simulator.currentStage.choices.indexed
+            .where((entry) => entry.$2.actionId != 'voluntary_retirement')
+            .toList();
+        simulator.choose(
+          index,
+          regularChoices[index % regularChoices.length].$1,
+        );
       }
 
       final player = simulator.finish();
@@ -279,6 +349,89 @@ void main() {
         player.career.every((chapter) => realClubs.contains(chapter.club)),
         isTrue,
       );
+    });
+
+    test('later backgrounds carry the previous decision into the event', () {
+      final simulator = LifeSimulator(
+        nationality: '中国',
+        position: '前腰',
+        random: Random(42),
+      );
+      final previousTitle = simulator.currentStage.choices.first.titleZh;
+
+      simulator.choose(0, 0);
+
+      expect(
+        simulator.currentStage.choices.every(
+          (choice) => choice.backgroundZh.contains(previousTitle),
+        ),
+        isTrue,
+      );
+      expect(
+        simulator.currentStage.scenarioId,
+        isNot(simulator.decisions.last.stage.scenarioId),
+      );
+    });
+
+    test('positive choices use the stronger legendary growth scale', () {
+      LifeSimulator? simulator;
+      var before = 0;
+      for (var seed = 0; seed < 500 && simulator == null; seed++) {
+        final candidate = LifeSimulator(
+          nationality: '中国',
+          position: '前腰',
+          random: Random(seed),
+        );
+        final choiceIndex = candidate.currentStage.choices.indexWhere(
+          (choice) => choice.actionId == 'technical',
+        );
+        if (choiceIndex >= 0 &&
+            candidate.currentStage.choices[choiceIndex].delta[PlayerAttribute
+                    .technique] >=
+                7) {
+          before = candidate.overallRating;
+          candidate.choose(0, choiceIndex);
+          if (candidate.overallRating > before) simulator = candidate;
+        }
+      }
+
+      expect(simulator, isNotNull);
+      expect(
+        simulator!.decisions.first.choice.delta[PlayerAttribute.technique],
+        greaterThanOrEqualTo(7),
+      );
+      expect(simulator.overallRating, greaterThan(before));
+      expect(simulator.lastOverallChange, greaterThan(0));
+    });
+
+    test('eligible veteran events can offer voluntary retirement', () {
+      LifeSimulator? retired;
+      for (var seed = 0; seed < 300 && retired == null; seed++) {
+        final simulator = LifeSimulator(
+          nationality: '中国',
+          position: '中前卫',
+          density: CareerDecisionDensity.everyYear,
+          random: Random(seed),
+        );
+        while (!simulator.isComplete) {
+          final retirementIndex = simulator.currentStage.choices.indexWhere(
+            (choice) => choice.actionId == 'voluntary_retirement',
+          );
+          if (retirementIndex >= 0) {
+            simulator.choose(simulator.decisions.length, retirementIndex);
+            retired = simulator;
+            break;
+          }
+          simulator.choose(simulator.decisions.length, 0);
+        }
+      }
+
+      expect(retired, isNotNull);
+      expect(
+        retired!.retirementOutcome!.age,
+        greaterThan(ProbabilitySources.manualRetirementReferenceAge),
+      );
+      expect(retired.retirementOutcome!.cause, LifeRetirementCause.voluntary);
     });
 
     test('character values change eligible options', () {

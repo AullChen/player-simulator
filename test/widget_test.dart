@@ -201,6 +201,10 @@ void main() {
   testWidgets('life mode explains context without exposing hidden scores', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
       const MaterialApp(
         home: LifeModeScreen(nationality: '中国', position: '中前卫'),
@@ -211,10 +215,25 @@ void main() {
     expect(find.textContaining('训练负荷'), findsNothing);
     expect(find.textContaining('伤病风险'), findsNothing);
     expect(find.textContaining('青训体系里度过了数年'), findsOneWidget);
+    expect(find.text('球探总评'), findsOneWidget);
+    expect(find.text('当前能力'), findsOneWidget);
+    expect(find.textContaining('本轮主题：'), findsOneWidget);
     expect(find.text('当时'), findsWidgets);
     expect(find.text('你的决定'), findsWidgets);
     expect(find.textContaining('确认结果：'), findsNothing);
     expect(find.textContaining('留队 ·'), findsNothing);
+
+    await tester.scrollUntilVisible(
+      find.text('你的决定').first,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('你的决定').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('球探总评'), findsOneWidget);
+    expect(find.textContaining('选择后'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }
 

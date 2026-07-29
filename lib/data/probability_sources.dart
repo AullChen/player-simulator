@@ -19,7 +19,7 @@ class ProbabilitySource {
 }
 
 abstract final class ProbabilitySources {
-  static const dataVersion = '2026.07-public-v5';
+  static const dataVersion = '2026.07-public-v6';
 
   static const sources = <ProbabilitySource>[
     ProbabilitySource(
@@ -105,10 +105,11 @@ abstract final class ProbabilitySources {
       title: 'FIFPRO Global Employment Report 2016',
       publisher: 'FIFPRO',
       publishedYear: 2016,
-      scope: '覆盖 54 个国家、87 个联赛、约 14,000 名球员；职业合同平均长度不足两年',
+      scope:
+          '覆盖 54 个国家、87 个联赛、约 14,000 名球员；职业合同平均长度不足两年，报告将幸运球员的常见退役时间描述为三十岁出头',
       url:
           'https://www.fifpro.org/en/articles/2019/11/mens-football-global-report-2016',
-      appliedTo: ['随机长度模式的合同脆弱性与无合适去处剧情'],
+      appliedTo: ['随机长度模式的合同脆弱性与无合适去处剧情', '主动退役选项的年龄门槛'],
     ),
     ProbabilitySource(
       id: 'football-return-to-play-reinjury-2025',
@@ -165,4 +166,9 @@ abstract final class ProbabilitySources {
   static const professionalMortalityAccidentShare = 0.25;
   static const severeOffPitchAccidentProxyPerYear =
       professionalMortalityPerPlayerYear * professionalMortalityAccidentShare;
+
+  // FIFPRO describes retirement in the early thirties rather than publishing
+  // a single global mean. Age 33 is therefore a transparent product anchor:
+  // voluntary retirement choices may appear only after this age.
+  static const manualRetirementReferenceAge = 33;
 }
