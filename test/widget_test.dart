@@ -83,6 +83,7 @@ void main() {
     expect(find.text('关键节点'), findsOneWidget);
     expect(find.text('逐年选择'), findsOneWidget);
     expect(find.text('随机长度'), findsOneWidget);
+    expect(find.textContaining('无预设节点数'), findsOneWidget);
 
     await tester.scrollUntilVisible(
       find.text('逐年选择'),
@@ -210,8 +211,10 @@ void main() {
     expect(find.textContaining('训练负荷'), findsNothing);
     expect(find.textContaining('伤病风险'), findsNothing);
     expect(find.textContaining('青训体系里度过了数年'), findsOneWidget);
-    expect(find.textContaining('你要做：'), findsWidgets);
-    expect(find.textContaining('确认结果：'), findsWidgets);
+    expect(find.text('当时'), findsWidgets);
+    expect(find.text('你的决定'), findsWidgets);
+    expect(find.textContaining('确认结果：'), findsNothing);
+    expect(find.textContaining('留队 ·'), findsNothing);
   });
 }
 

@@ -19,6 +19,10 @@ void main() {
       ),
       isTrue,
     );
+    expect(
+      ProbabilitySources.severeOffPitchAccidentProxyPerYear,
+      closeTo(0.0001175, 0.0000001),
+    );
   });
 
   test('FIFA-calibrated transfer weights preserve the published ordering', () {

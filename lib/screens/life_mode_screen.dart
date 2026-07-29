@@ -97,6 +97,8 @@ class _CareerStage extends StatelessWidget {
         _StageProgress(
           current: simulator.decisions.length,
           total: simulator.totalStages,
+          age: stage.age,
+          openEnded: simulator.isOpenEnded,
           density: context.tr(
             simulator.density.label,
             simulator.density.labelEn,
@@ -192,11 +194,15 @@ class _StageProgress extends StatelessWidget {
   const _StageProgress({
     required this.current,
     required this.total,
+    required this.age,
+    required this.openEnded,
     required this.density,
   });
 
   final int current;
   final int total;
+  final int age;
+  final bool openEnded;
   final String density;
 
   @override
@@ -208,7 +214,9 @@ class _StageProgress extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                '$density · ${current + 1} / $total',
+                openEnded
+                    ? '$density · ${context.tr('第 ${current + 1} 次选择', 'choice ${current + 1}')}'
+                    : '$density · ${current + 1} / $total',
                 style: const TextStyle(
                   color: AppColors.ink,
                   fontSize: 12,
@@ -217,7 +225,9 @@ class _StageProgress extends StatelessWidget {
               ),
             ),
             Text(
-              '${((current + 1) / total * 100).round()}%',
+              openEnded
+                  ? context.tr('终点未定 · $age 岁', 'open end · age $age')
+                  : '${((current + 1) / total * 100).round()}%',
               style: const TextStyle(
                 color: AppColors.muted,
                 fontSize: 12,
@@ -227,15 +237,24 @@ class _StageProgress extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(99),
-          child: LinearProgressIndicator(
-            value: (current + 1) / total,
-            minHeight: 6,
-            backgroundColor: AppColors.line,
-            color: const Color(0xFF2E5D9F),
+        if (openEnded)
+          Container(
+            height: 3,
+            decoration: BoxDecoration(
+              color: AppColors.line,
+              borderRadius: BorderRadius.circular(99),
+            ),
+          )
+        else
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              value: (current + 1) / total,
+              minHeight: 6,
+              backgroundColor: AppColors.line,
+              color: const Color(0xFF2E5D9F),
+            ),
           ),
-        ),
       ],
     );
   }
@@ -287,74 +306,27 @@ class _ChoiceCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE8F5EF),
-                          borderRadius: BorderRadius.circular(99),
-                          border: Border.all(
-                            color: AppColors.pitchDark.withValues(alpha: 0.24),
-                          ),
-                        ),
-                        child: Text(
-                          context.tr(
-                            choice.actionLabelZh,
-                            choice.actionLabelEn,
-                          ),
-                          style: const TextStyle(
-                            color: AppColors.pitchDark,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
                       Text(
                         context.tr(choice.titleZh, choice.titleEn),
                         style: const TextStyle(
                           fontWeight: FontWeight.w900,
                           color: AppColors.ink,
+                          height: 1.35,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${context.tr('背景：', 'Context: ')}'
-                        '${context.tr(choice.backgroundZh, choice.backgroundEn)}',
-                        style: Theme.of(context).textTheme.bodyMedium,
+                      const SizedBox(height: 12),
+                      _StoryBeat(
+                        label: context.tr('当时', 'Situation'),
+                        text: context.tr(
+                          choice.backgroundZh,
+                          choice.backgroundEn,
+                        ),
                       ),
                       const SizedBox(height: 9),
-                      Text(
-                        '${context.tr('你要做：', 'Your action: ')}'
-                        '${context.tr(choice.descriptionZh, choice.descriptionEn)}',
-                        style: const TextStyle(
-                          color: AppColors.ink,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF4F7FA),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.line),
-                        ),
-                        child: Text(
-                          '${context.tr('确认结果：', 'Confirmed outcome: ')}'
-                          '${context.tr(choice.outcomeZh, choice.outcomeEn)}',
-                          style: const TextStyle(
-                            color: Color(0xFF29445F),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            height: 1.45,
-                          ),
-                        ),
+                      _StoryBeat(
+                        label: context.tr('你的决定', 'Your decision'),
+                        text: context.tr(choice.decisionZh, choice.decisionEn),
+                        emphasized: true,
                       ),
                     ],
                   ),
@@ -364,6 +336,57 @@ class _ChoiceCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _StoryBeat extends StatelessWidget {
+  const _StoryBeat({
+    required this.label,
+    required this.text,
+    this.emphasized = false,
+  });
+
+  final String label;
+  final String text;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
+      decoration: BoxDecoration(
+        color: emphasized ? const Color(0xFFEAF2F8) : const Color(0xFFF7F8FA),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: emphasized ? const Color(0xFF9AB6D2) : const Color(0xFFD7DDE4),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: emphasized ? const Color(0xFF2E5D9F) : AppColors.muted,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.7,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            text,
+            style: TextStyle(
+              color: emphasized ? AppColors.ink : const Color(0xFF465568),
+              fontSize: 12,
+              fontWeight: emphasized ? FontWeight.w700 : FontWeight.w500,
+              height: 1.55,
+            ),
+          ),
+        ],
       ),
     );
   }

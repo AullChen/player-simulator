@@ -19,7 +19,7 @@ class ProbabilitySource {
 }
 
 abstract final class ProbabilitySources {
-  static const dataVersion = '2026.07-public-v4';
+  static const dataVersion = '2026.07-public-v5';
 
   static const sources = <ProbabilitySource>[
     ProbabilitySource(
@@ -120,6 +120,25 @@ abstract final class ProbabilitySources {
       url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC11787231/',
       appliedTo: ['既往伤病和冒险复出对后续退役风险的动态修正'],
     ),
+    ProbabilitySource(
+      id: 'professional-football-mortality-2015',
+      title: 'Mortality in international professional football (soccer)',
+      publisher: 'Journal of Sports Medicine and Physical Fitness',
+      publishedYear: 2015,
+      scope: 'FIFPRO 与 70 多个国家球员工会记录的 2007–2013 年现役及 45 岁以下近期退役球员死亡事件',
+      url: 'https://pubmed.ncbi.nlm.nih.gov/25289716/',
+      appliedTo: ['开放生涯模式中极低概率的场外严重意外数量级'],
+    ),
+    ProbabilitySource(
+      id: 'guinness-oldest-footballer-2020',
+      title: 'Oldest football (soccer) player (male)',
+      publisher: 'Guinness World Records',
+      publishedYear: 2020,
+      scope: '74 岁 125 天参加正式记录比赛的极端长寿个案',
+      url:
+          'https://www.guinnessworldrecords.com/world-records/370408-oldest-active-football-soccer-player',
+      appliedTo: ['开放生涯允许极罕见地延续至 60 岁'],
+    ),
   ];
 
   static const professionalPlayers2023 = 128694;
@@ -137,4 +156,13 @@ abstract final class ProbabilitySources {
   static const retirementAgeCausePercent = 26.7;
   static const retirementAlternativeCareerCausePercent = 6.9;
   static const retirementPersonalCausePercent = 3.4;
+
+  // Gouttebarge et al. reported 0.47 deaths per 1,000 footballers per
+  // year, with accidents accounting for 25% of deaths. The product is used
+  // only as a conservative order-of-magnitude proxy for a severe off-pitch
+  // accident ending a career; it is not a measured car-crash retirement rate.
+  static const professionalMortalityPerPlayerYear = 0.47 / 1000;
+  static const professionalMortalityAccidentShare = 0.25;
+  static const severeOffPitchAccidentProxyPerYear =
+      professionalMortalityPerPlayerYear * professionalMortalityAccidentShare;
 }

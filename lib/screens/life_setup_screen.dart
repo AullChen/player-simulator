@@ -120,9 +120,10 @@ class _LifeSetupScreenState extends State<LifeSetupScreen> {
                     const SizedBox(height: 5),
                     Text(
                       context.tr(
-                        '从 5 个关键节点到逐年选择。更多节点意味着更多风险与塑造人物的机会。',
-                        'Choose five milestones or every career year. More '
-                            'nodes mean more risk and more chances to shape the player.',
+                        '开放生涯不预设终点；固定模式则从 5 个关键节点到逐年选择。每次决定都会塑造后续处境。',
+                        'Open-ended careers have no preset finish. Fixed modes '
+                            'range from five milestones to yearly choices, and '
+                            'every decision reshapes what follows.',
                       ),
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),

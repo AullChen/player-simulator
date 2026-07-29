@@ -32,7 +32,8 @@ extension CareerDecisionDensityInfo on CareerDecisionDensity {
   };
 
   String get description => switch (this) {
-    CareerDecisionDensity.random => '随机生成 6–22 个预定节点；每次选择后都可能因伤病、合同、高龄等原因提前退役。',
+    CareerDecisionDensity.random =>
+      '不预设选择总数；每个决定都独立携带退役风险，生涯可能首轮结束，也可能延续到 60 岁。',
     CareerDecisionDensity.milestones => '5 次核心抉择，快速完成一段生涯。',
     CareerDecisionDensity.everyThreeYears => '8 次选择，覆盖成长、巅峰与转型。',
     CareerDecisionDensity.everyTwoYears => '11 次选择，更细致地管理竞技状态。',
@@ -41,8 +42,8 @@ extension CareerDecisionDensityInfo on CareerDecisionDensity {
 
   String get descriptionEn => switch (this) {
     CareerDecisionDensity.random =>
-      'Plan 6–22 random nodes; injury, contracts, age or personal reasons '
-          'can end the career after any choice.',
+      'No choice total is fixed in advance. Every decision carries its own '
+          'retirement risk, from a first-round exit to an age-60 career.',
     CareerDecisionDensity.milestones =>
       'Five defining choices for a quick career.',
     CareerDecisionDensity.everyThreeYears =>
@@ -54,7 +55,7 @@ extension CareerDecisionDensityInfo on CareerDecisionDensity {
   };
 
   String get estimatedTime => switch (this) {
-    CareerDecisionDensity.random => '约 2–10 分钟',
+    CareerDecisionDensity.random => '时长不固定',
     CareerDecisionDensity.milestones => '约 2 分钟',
     CareerDecisionDensity.everyThreeYears => '约 4 分钟',
     CareerDecisionDensity.everyTwoYears => '约 6 分钟',
@@ -62,7 +63,7 @@ extension CareerDecisionDensityInfo on CareerDecisionDensity {
   };
 
   String get estimatedTimeEn => switch (this) {
-    CareerDecisionDensity.random => 'about 2–10 min',
+    CareerDecisionDensity.random => 'open-ended',
     CareerDecisionDensity.milestones => 'about 2 min',
     CareerDecisionDensity.everyThreeYears => 'about 4 min',
     CareerDecisionDensity.everyTwoYears => 'about 6 min',
@@ -101,10 +102,11 @@ extension CareerDecisionDensityInfo on CareerDecisionDensity {
   int get nodeCount => ages.length;
 
   String get nodeSummary =>
-      this == CareerDecisionDensity.random ? '6–22 节点' : '$nodeCount 节点';
+      this == CareerDecisionDensity.random ? '无预设节点数' : '$nodeCount 节点';
 
-  String get nodeSummaryEn =>
-      this == CareerDecisionDensity.random ? '6–22 nodes' : '$nodeCount nodes';
+  String get nodeSummaryEn => this == CareerDecisionDensity.random
+      ? 'no preset total'
+      : '$nodeCount nodes';
 }
 
 class LifeChoice {
@@ -116,12 +118,10 @@ class LifeChoice {
     required this.titleEn,
     required this.backgroundZh,
     required this.backgroundEn,
-    required this.descriptionZh,
-    required this.descriptionEn,
-    required this.actionLabelZh,
-    required this.actionLabelEn,
-    required this.outcomeZh,
-    required this.outcomeEn,
+    required this.decisionZh,
+    required this.decisionEn,
+    required this.retirementProbability,
+    required this.accidentProbability,
     required this.delta,
     required this.trainingLoadDelta,
     required this.injuryRiskDelta,
@@ -135,12 +135,10 @@ class LifeChoice {
   final String titleEn;
   final String backgroundZh;
   final String backgroundEn;
-  final String descriptionZh;
-  final String descriptionEn;
-  final String actionLabelZh;
-  final String actionLabelEn;
-  final String outcomeZh;
-  final String outcomeEn;
+  final String decisionZh;
+  final String decisionEn;
+  final double retirementProbability;
+  final double accidentProbability;
   final AttributeDelta delta;
   final int trainingLoadDelta;
   final int injuryRiskDelta;
@@ -183,7 +181,14 @@ class LifeDecision {
   final String club;
 }
 
-enum LifeRetirementCause { acuteInjury, chronicInjury, noClub, age, personal }
+enum LifeRetirementCause {
+  accident,
+  acuteInjury,
+  chronicInjury,
+  noClub,
+  age,
+  personal,
+}
 
 class LifeRetirementOutcome {
   const LifeRetirementOutcome({
@@ -216,7 +221,7 @@ class LifeSimulator {
            _createInitialAttributes(position, random ?? Random()) {
     attributes = _initialAttributes;
     _stageAges = density == CareerDecisionDensity.random
-        ? _randomStageAges()
+        ? <int>[17]
         : List<int>.unmodifiable(density.ages);
     _preferredFoot =
         attributes[PlayerAttribute.leftLeg] >
@@ -260,10 +265,10 @@ class LifeSimulator {
   int injuryRisk = 8;
 
   int get totalStages => _stageAges.length;
-  bool get isComplete =>
-      _retirementOutcome != null || decisions.length == totalStages;
-  bool get retiredEarly =>
-      _retirementOutcome != null && decisions.length < totalStages;
+  bool get isOpenEnded => density == CareerDecisionDensity.random;
+  bool get isComplete => isOpenEnded
+      ? _retirementOutcome != null
+      : decisions.length == totalStages;
   LifeRetirementOutcome? get retirementOutcome => _retirementOutcome;
   LifeStage get currentStage {
     if (isComplete) throw StateError('The career is already complete.');
@@ -362,11 +367,17 @@ class LifeSimulator {
       LifeDecision(stage: stage, choice: choice, club: _currentClub.name),
     );
     if (density == CareerDecisionDensity.random) {
-      _maybeTriggerRetirement(
-        stage,
-        choice,
-        forceNaturalEnd: decisions.length == totalStages,
-      );
+      _maybeTriggerRetirement(stage, choice);
+      if (_retirementOutcome == null) {
+        if (stage.age >= 60) {
+          _retirementOutcome = _retirementStory(
+            stage.age,
+            LifeRetirementCause.age,
+          );
+        } else {
+          _stageAges.add(_nextOpenEndedAge(stage.age));
+        }
+      }
     }
     _peakOverall = max(_peakOverall, overallRating);
     _checkpoints.add(
@@ -414,7 +425,7 @@ class LifeSimulator {
         ]) /
         100;
     final appearances = max(
-      80,
+      5,
       (careerYears * (20 + fitness * 24) - _injuries.length * 8).round(),
     );
     final starts = (appearances * (0.58 + peakRating / 300)).round().clamp(
@@ -427,7 +438,7 @@ class LifeSimulator {
     final reputation = attributes[PlayerAttribute.reputation];
     final nationalCaps = reputation < 48
         ? 0
-        : ((reputation - 43) * 1.9).round();
+        : min(careerYears * 12, ((reputation - 43) * 1.9).round());
     final championships = max(0, (reputation + _peakOverall - 115) ~/ 12);
     final totalFees = _transfers.fold<double>(
       0,
@@ -564,23 +575,18 @@ class LifeSimulator {
             id: candidate.id,
             actionId: candidate.action.id,
             theme: candidate.scenario.theme,
-            titleZh:
-                '${candidate.scenario.titleZh} · ${candidate.action.titleZh}',
-            titleEn:
-                '${candidate.scenario.titleEn} · ${candidate.action.titleEn}',
-            backgroundZh:
-                '${candidate.scenario.contextZh} '
-                '你目前注册在${_currentClub.name}，本轮决定会立即按“确认结果”执行。',
-            backgroundEn:
-                '${candidate.scenario.contextEn} You are currently registered '
-                'with ${_currentClub.name}; the confirmed outcome below takes '
-                'effect this round.',
-            descriptionZh: candidate.action.descriptionZh,
-            descriptionEn: candidate.action.descriptionEn,
-            actionLabelZh: _actionLabelZh(candidate.action),
-            actionLabelEn: _actionLabelEn(candidate.action),
-            outcomeZh: _outcomeZh(candidate.action),
-            outcomeEn: _outcomeEn(candidate.action),
+            titleZh: _choiceTitleZh(candidate),
+            titleEn: _choiceTitleEn(candidate),
+            backgroundZh: _choiceBackgroundZh(candidate),
+            backgroundEn: _choiceBackgroundEn(candidate),
+            decisionZh: _decisionStoryZh(candidate),
+            decisionEn: _decisionStoryEn(candidate),
+            retirementProbability: _retirementProbabilityForAction(
+              age,
+              candidate.action,
+            ),
+            accidentProbability:
+                ProbabilitySources.severeOffPitchAccidentProxyPerYear,
             delta: candidate.action.delta,
             trainingLoadDelta: candidate.action.trainingLoadDelta,
             injuryRiskDelta: candidate.action.injuryRiskDelta,
@@ -590,59 +596,217 @@ class LifeSimulator {
     );
   }
 
-  String _actionLabelZh(LifeActionSeed action) {
-    if (action.id == 'loan') return '租借离队';
-    if (action.causesTransfer) return '永久转会';
-    if (action.id == 'stay' || action.id == 'negotiate') return '留队';
-    return switch (action.id) {
-      'report' || 'specialist' || 'rehab_group' || 'recover' => '留队 · 恢复',
-      'play_through' || 'gamble' => '留队 · 冒险复出',
-      'technical' || 'intensive' || 'tactical' || 'team_session' => '留队 · 训练',
-      'safe' || 'creative' || 'physical' || 'lead' || 'hero' => '留队 · 比赛',
-      _ => '留队 · 场外选择',
+  String _choiceTitleZh(LifeCandidate candidate) {
+    final action = candidate.action;
+    final summary = switch (action.id) {
+      'technical' => '用录像和重复训练修正技术',
+      'intensive' => '接受超负荷计划冲击短期提升',
+      'tactical' => '把额外训练时间交给战术研究',
+      'team_session' => '组织队友合练建立默契',
+      'recover' => '放弃加练并执行完整恢复',
+      'report' => '停止硬撑并接受队医评估',
+      'play_through' => '隐瞒不适继续争取出场',
+      'specialist' => '暂停比赛寻找专项专家',
+      'rehab_group' => '加入集体康复并按计划复出',
+      'gamble' => '提前复出赌一次比赛机会',
+      'stay' => '拒绝离队，留下争取位置',
+      'move' => '正式提出永久转会',
+      'loan' => '接受租借换取比赛时间',
+      'negotiate' => '先与教练谈清竞技角色',
+      'agent_pressure' => '授权经纪人完成转会',
+      'safe' => '服从部署并优先控制风险',
+      'creative' => '主动要球并承担创造责任',
+      'physical' => '提高逼抢和身体对抗强度',
+      'lead' => '接管场上沟通与站位指挥',
+      'hero' => '无视保守方案争取个人终结',
+      'quiet' => '拒绝回应并把注意力留给足球',
+      'speak' => '正面说明事实与个人立场',
+      'community' => '把关注转向长期社区项目',
+      'commercial' => '接受商业合作扩大影响力',
+      'confront' => '公开强硬回应外界批评',
+      _ => action.titleZh,
+    };
+    return '${candidate.scenario.titleZh}：$summary';
+  }
+
+  String _choiceTitleEn(LifeCandidate candidate) {
+    final action = candidate.action;
+    final summary = switch (action.id) {
+      'technical' => 'use film and repetition to repair technique',
+      'intensive' => 'accept overload training for a short-term leap',
+      'tactical' => 'devote the extra work to tactical study',
+      'team_session' => 'organise a team session to build chemistry',
+      'recover' => 'cancel extra work and complete a recovery block',
+      'report' => 'stop pushing through and accept a medical review',
+      'play_through' => 'hide the discomfort and keep chasing minutes',
+      'specialist' => 'pause competition and consult a specialist',
+      'rehab_group' => 'join group rehab and follow the return plan',
+      'gamble' => 'return early and gamble on one match',
+      'stay' => 'reject the exit and fight for a place',
+      'move' => 'submit a permanent transfer request',
+      'loan' => 'take a loan for regular minutes',
+      'negotiate' => 'agree a clear sporting role first',
+      'agent_pressure' => 'authorise the agent to complete a transfer',
+      'safe' => 'follow instructions and control the risk',
+      'creative' => 'demand the ball and carry the creative burden',
+      'physical' => 'raise the press and physical intensity',
+      'lead' => 'take charge of positioning and communication',
+      'hero' => 'reject caution and chase the decisive moment',
+      'quiet' => 'decline a response and return focus to football',
+      'speak' => 'state the facts and your position openly',
+      'community' => 'redirect the attention into community work',
+      'commercial' => 'accept the partnership and grow your profile',
+      'confront' => 'answer the criticism in public',
+      _ => action.titleEn.toLowerCase(),
+    };
+    return '${candidate.scenario.titleEn}: $summary';
+  }
+
+  String _choiceBackgroundZh(LifeCandidate candidate) {
+    final stakes = switch (candidate.scenario.theme) {
+      LifeEventTheme.training => '教练组只给出一个训练周期来检验改变，下一阶段的定位取决于你如何使用这段时间。',
+      LifeEventTheme.health => '队医、教练和你对风险的判断并不一致，眼前的出场机会与长期恢复发生了冲突。',
+      LifeEventTheme.club => '合同、出场顺位和外部报价同时摆到桌面上，经纪人要求你在窗口关闭前作出明确答复。',
+      LifeEventTheme.match => '比赛计划已经确定，但真正进入场上后，你必须决定以什么方式承担这一刻。',
+      LifeEventTheme.publicLife => '场外的回应会被队友、俱乐部和公众同时看见，也会改变接下来彼此合作的方式。',
+    };
+    return '你当时效力于${_currentClub.name}。${candidate.scenario.contextZh}$stakes';
+  }
+
+  String _choiceBackgroundEn(LifeCandidate candidate) {
+    final stakes = switch (candidate.scenario.theme) {
+      LifeEventTheme.training =>
+        'The staff will judge the change over one training cycle, and your '
+            'next role depends on how you use it.',
+      LifeEventTheme.health =>
+        'You, the doctor and the coach read the risk differently, putting an '
+            'immediate opportunity against long-term recovery.',
+      LifeEventTheme.club =>
+        'Contract terms, squad order and outside interest are all on the '
+            'table, and your agent needs an answer before the window closes.',
+      LifeEventTheme.match =>
+        'The match plan is set, but once play begins you must decide how to '
+            'carry this moment.',
+      LifeEventTheme.publicLife =>
+        'Teammates, the club and the public will all see the response, which '
+            'will shape how you work together next.',
+    };
+    return 'You are playing for ${_currentClub.name}. '
+        '${candidate.scenario.contextEn} $stakes';
+  }
+
+  String _decisionStoryZh(LifeCandidate candidate) {
+    return switch (candidate.action.id) {
+      'technical' => '你请分析师剪出自己的动作片段，每次训练后重复练习同一项技术，直到教练确认动作已经稳定。',
+      'intensive' => '你签下额外的体能与技术计划，把部分恢复日也交给高负荷训练，接受短期提升可能换来伤病的风险。',
+      'tactical' => '你把个人加练时间转进战术室，逐段研究对手站位，并请教练按录像复盘你的每一次决策。',
+      'team_session' => '你放弃一部分个人训练，召集同位置队友加练跑位、传球和沟通，把机会用于建立整条线路的默契。',
+      'recover' => '你取消全部额外训练，按队医安排完成理疗、睡眠与低强度恢复，把下一场的竞争暂时放到身体之后。',
+      'report' => '你向队医说明每一处不适并退出当日合练，接受影像检查，再由医疗组决定何时恢复对抗。',
+      'play_through' => '你没有完整上报疼痛，只让理疗师做了固定处理便继续参加合练，准备照常争取下一场的名单。',
+      'specialist' => '你申请暂停比赛并联系外部专项专家，把检查结果交给双方医疗团队共同制定新的康复方案。',
+      'rehab_group' => '你加入伤员康复小组，按统一进度完成力量、跑动和有球测试，达标之前不要求提前复出。',
+      'gamble' => '你要求医疗组提前放行，在没有完成全部测试时就回到比赛名单，接受旧伤复发也要抓住这次机会。',
+      'stay' => '你拒绝了所有离队方案，继续在${_currentClub.name}训练，并要求教练用接下来的表现重新决定出场顺位。',
+      'move' => '你让经纪人递交正式转会申请，明确接受永久离开${_currentClub.name}，并开始与新俱乐部谈合同。',
+      'loan' => '你签下租借文件，暂时离开${_currentClub.name}，用一个赛季的稳定出场换取成长和未来位置。',
+      'negotiate' => '你暂不离队，与教练写下位置、预计出场和阶段复盘安排，并以这份承诺作为继续留队的条件。',
+      'agent_pressure' => '你授权经纪人接受外部报价并完成永久转会，也接受这次强硬离队可能损害原更衣室关系。',
+      'safe' => '你严格执行教练分配的位置，减少冒险传球和前插，把控制失误与保护整体阵型放在个人表现之前。',
+      'creative' => '你主动向队友要球，连续尝试穿透性传球和一对一突破，接受丢失球权也要创造决定性机会。',
+      'physical' => '你把逼抢线向前推，在每次五五开的争夺中主动对抗，用更高跑动强度压迫对手出球。',
+      'lead' => '你在场上召集队友，持续提醒站位、盯人与比赛节奏，主动接管原本由教练席完成的即时沟通。',
+      'hero' => '你放弃保守处理，在关键回合主动索要最后一传、射门或定位球，决定亲自承担比赛结果。',
+      'quiet' => '你拒绝采访和社交媒体回应，把第二天的公开行程全部取消，照常回到训练基地准备比赛。',
+      'speak' => '你接受俱乐部安排的正式采访，逐项说明事实、个人立场和应承担的责任，不把问题留给传闻解释。',
+      'community' => '你把外界关注转向一项长期社区计划，承诺每周固定投入时间，并让俱乐部公开项目进展。',
+      'commercial' => '你签下商业合作并确认拍摄日程，接受竞技准备时间被切分，以此扩大个人品牌和收入。',
+      'confront' => '你通过公开采访正面反驳批评，点明争议中的责任方，并承担这番回应可能继续制造冲突。',
+      _ => '你选择了“${candidate.action.titleZh}”，并与相关人员确认了具体执行方式。',
     };
   }
 
-  String _actionLabelEn(LifeActionSeed action) {
-    if (action.id == 'loan') return 'LOAN EXIT';
-    if (action.causesTransfer) return 'PERMANENT TRANSFER';
-    if (action.id == 'stay' || action.id == 'negotiate') return 'STAY';
-    return switch (action.id) {
-      'report' ||
-      'specialist' ||
-      'rehab_group' ||
-      'recover' => 'STAY · RECOVER',
-      'play_through' || 'gamble' => 'STAY · RISK RETURN',
-      'technical' ||
-      'intensive' ||
-      'tactical' ||
-      'team_session' => 'STAY · TRAIN',
-      'safe' || 'creative' || 'physical' || 'lead' || 'hero' => 'STAY · MATCH',
-      _ => 'STAY · OFF-PITCH',
+  String _decisionStoryEn(LifeCandidate candidate) {
+    return switch (candidate.action.id) {
+      'technical' =>
+        'You ask the analyst to cut clips of your movement, then repeat the '
+            'same technique after every session until the coach signs it off.',
+      'intensive' =>
+        'You accept extra physical and technical work, surrendering part of '
+            'your recovery days for a quicker gain and its injury risk.',
+      'tactical' =>
+        'You move your extra work into the tactics room, study the opponent '
+            'phase by phase and review each decision with the coach.',
+      'team_session' =>
+        'You give up solo work to organise a voluntary session on movement, '
+            'passing and communication with the players around you.',
+      'recover' =>
+        'You cancel all extra work and complete the prescribed treatment, '
+            'sleep and low-intensity block before competing for the next match.',
+      'report' =>
+        'You describe every symptom to the doctor, withdraw from training and '
+            'accept scans before the medical team clears contact work.',
+      'play_through' =>
+        'You withhold the full extent of the pain, ask only for strapping and '
+            'continue training so you can chase a place in the next squad.',
+      'specialist' =>
+        'You pause competition, consult an outside specialist and ask both '
+            'medical teams to agree a new programme from the test results.',
+      'rehab_group' =>
+        'You join the injured-player group and complete strength, running and '
+            'ball tests in order, refusing to return before every benchmark.',
+      'gamble' =>
+        'You request early clearance and return to the squad before completing '
+            'every test, accepting the chance of recurrence for this match.',
+      'stay' =>
+        'You reject every exit route and remain at ${_currentClub.name}, asking '
+            'the coach to reset the pecking order through your performances.',
+      'move' =>
+        'You ask your agent to submit a formal request, accept a permanent '
+            'departure from ${_currentClub.name} and open contract talks elsewhere.',
+      'loan' =>
+        'You sign the loan papers and temporarily leave ${_currentClub.name}, '
+            'trading one season of comfort for reliable match minutes.',
+      'negotiate' =>
+        'You postpone an exit and agree a written plan for position, expected '
+            'minutes and review dates as the condition for staying.',
+      'agent_pressure' =>
+        'You authorise the agent to accept an outside offer and complete a '
+            'permanent move, accepting the damage to old dressing-room ties.',
+      'safe' =>
+        'You hold the assigned position, cut out risky passes and forward runs, '
+            'and put the team shape ahead of a personal highlight.',
+      'creative' =>
+        'You demand the ball and repeatedly attempt line-breaking passes and '
+            'one-on-ones, accepting turnovers in pursuit of a decisive chance.',
+      'physical' =>
+        'You push the press higher and attack every even duel, using a greater '
+            'running and contact load to disrupt the opponent.',
+      'lead' =>
+        'You gather teammates on the pitch and take charge of calls on shape, '
+            'marking and tempo that would normally come from the touchline.',
+      'hero' =>
+        'You reject the cautious route and claim the final pass, shot or set '
+            'piece, choosing to carry the result yourself.',
+      'quiet' =>
+        'You decline interviews and social-media replies, cancel the next '
+            'day’s public schedule and return to the training ground.',
+      'speak' =>
+        'You sit for a formal club interview and state the facts, your position '
+            'and your responsibility rather than leaving the story to rumour.',
+      'community' =>
+        'You redirect attention into a long-term community project, commit '
+            'weekly time and let the club publish its progress.',
+      'commercial' =>
+        'You sign the commercial partnership and its filming schedule, '
+            'accepting divided preparation time for a larger profile and income.',
+      'confront' =>
+        'You answer the criticism directly in public, name where responsibility '
+            'lies and accept that the response may prolong the conflict.',
+      _ =>
+        'You choose “${candidate.action.titleEn}” and agree the concrete '
+            'implementation with everyone involved.',
     };
-  }
-
-  String _outcomeZh(LifeActionSeed action) {
-    if (action.id == 'loan') {
-      return '确认后：你本轮离开${_currentClub.name}，以租借形式加盟另一家真实俱乐部。';
-    }
-    if (action.causesTransfer) {
-      return '确认后：你本轮永久离开${_currentClub.name}，并加盟另一家真实俱乐部。';
-    }
-    return '确认后：你本轮不会转会，继续效力${_currentClub.name}。';
-  }
-
-  String _outcomeEn(LifeActionSeed action) {
-    if (action.id == 'loan') {
-      return 'On confirmation: you leave ${_currentClub.name} this round and '
-          'join another real club on loan.';
-    }
-    if (action.causesTransfer) {
-      return 'On confirmation: you permanently leave ${_currentClub.name} '
-          'this round and join another real club.';
-    }
-    return 'On confirmation: no transfer occurs this round; you remain with '
-        '${_currentClub.name}.';
   }
 
   String _stageContextZh(int index, int age) {
@@ -655,7 +819,7 @@ class LifeSimulator {
     final seasons = max(1, age - previous.stage.age);
     final transferText = previous.choice.causesTransfer
         ? '那次决定把你带到${_currentClub.name}，你重新适应了训练节奏和更衣室。'
-        : '你留在${_currentClub.name}，角色在连续比赛和日常训练中逐渐变化。';
+        : '你在${_currentClub.name}把决定落实到日常训练和比赛，队内角色也随表现逐渐变化。';
     final physicalText = _injuries.isNotEmpty
         ? '期间一次${_injuries.last.type}打断了原定计划，复出后的出场顺位也发生了变化。'
         : trainingLoad >= 55
@@ -678,8 +842,8 @@ class LifeSimulator {
     final transferText = previous.choice.causesTransfer
         ? 'That decision took you to ${_currentClub.name}, where you had to '
               'learn a new training rhythm and dressing room.'
-        : 'You stayed at ${_currentClub.name}, while matches and daily '
-              'training gradually changed your role.';
+        : 'At ${_currentClub.name}, you carried the decision into daily '
+              'training and matches as your role gradually changed.';
     final physicalText = _injuries.isNotEmpty
         ? ' A ${_injuries.last.type} interrupted the plan and altered your '
               'place in the team after recovery.'
@@ -807,68 +971,74 @@ class LifeSimulator {
     injuryRisk = (injuryRisk + 4).clamp(0, 100);
   }
 
-  List<int> _randomStageAges() {
-    final terminalAge = 33 + _random.nextInt(7);
-    final maximumCount = min(22, terminalAge - 16);
-    final count = 6 + _random.nextInt(maximumCount - 5);
-    final middleAges = [for (var age = 18; age < terminalAge; age++) age]
-      ..shuffle(_random);
-    return [17, ...middleAges.take(count - 2), terminalAge]..sort();
+  int _nextOpenEndedAge(int currentAge) {
+    final seasonsUntilNextDecision = 1 + _random.nextInt(2);
+    return min(60, currentAge + seasonsUntilNextDecision);
   }
 
-  void _maybeTriggerRetirement(
-    LifeStage stage,
-    LifeChoice choice, {
-    required bool forceNaturalEnd,
-  }) {
-    final probability = _retirementHazard(stage.age, choice);
-    if (_random.nextDouble() < probability) {
+  void _maybeTriggerRetirement(LifeStage stage, LifeChoice choice) {
+    if (_random.nextDouble() < choice.accidentProbability) {
+      _retirementOutcome = _retirementStory(
+        stage.age,
+        LifeRetirementCause.accident,
+      );
+      return;
+    }
+    if (_random.nextDouble() < choice.retirementProbability) {
       final cause = _pickRetirementCause(stage.age, choice);
       if (cause == LifeRetirementCause.acuteInjury) {
         _recordCareerEndingInjury(stage.age);
       }
       _retirementOutcome = _retirementStory(stage.age, cause);
-      return;
-    }
-    if (forceNaturalEnd) {
-      _retirementOutcome = _retirementStory(stage.age, LifeRetirementCause.age);
     }
   }
 
-  double _retirementHazard(int age, LifeChoice choice) {
+  double _retirementProbabilityForAction(int age, LifeActionSeed action) {
+    final projected = attributes.apply(action.delta);
+    final projectedInjuryRisk = (injuryRisk + action.injuryRiskDelta).clamp(
+      0,
+      100,
+    );
+    final projectedTrainingLoad = (trainingLoad + action.trainingLoadDelta)
+        .clamp(0, 100);
     var probability = switch (age) {
-      <= 20 => 0.003,
-      <= 24 => 0.006,
-      <= 28 => 0.012,
-      <= 30 => 0.022,
-      <= 32 => 0.040,
-      <= 34 => 0.075,
-      <= 36 => 0.140,
-      <= 38 => 0.240,
-      _ => 0.380,
+      <= 20 => 0.008,
+      <= 24 => 0.012,
+      <= 27 => 0.020,
+      <= 30 => 0.045,
+      <= 32 => 0.090,
+      <= 34 => 0.160,
+      <= 36 => 0.260,
+      <= 38 => 0.380,
+      <= 40 => 0.500,
+      <= 43 => 0.620,
+      <= 46 => 0.720,
+      <= 50 => 0.800,
+      <= 55 => 0.870,
+      _ => 0.930,
     };
-    probability += max(0, injuryRisk - 28) / 850;
-    probability += max(0, trainingLoad - 52) / 1100;
-    probability += max(0, 58 - attributes[PlayerAttribute.health]) / 620;
+    probability += max(0, projectedInjuryRisk - 28) / 850;
+    probability += max(0, projectedTrainingLoad - 52) / 1100;
+    probability += max(0, 58 - projected[PlayerAttribute.health]) / 620;
     probability += min(0.075, _injuries.length * 0.012);
     if (_injuries.isNotEmpty && _injuries.last.daysAbsent >= 90) {
       probability += 0.055;
     }
-    probability += switch (choice.actionId) {
+    probability += switch (action.id) {
       'play_through' || 'gamble' => 0.075,
       'intensive' => 0.040,
       'physical' || 'hero' => 0.022,
       _ => 0,
     };
-    if (age >= 29 && attributes[PlayerAttribute.reputation] < 45) {
-      probability += (45 - attributes[PlayerAttribute.reputation]) / 360;
+    if (age >= 29 && projected[PlayerAttribute.reputation] < 45) {
+      probability += (45 - projected[PlayerAttribute.reputation]) / 360;
     }
-    if (choice.actionId == 'recover' ||
-        choice.actionId == 'report' ||
-        choice.actionId == 'specialist') {
+    if (action.id == 'recover' ||
+        action.id == 'report' ||
+        action.id == 'specialist') {
       probability *= 0.68;
     }
-    return probability.clamp(0.001, 0.62).toDouble();
+    return probability.clamp(0.001, age >= 56 ? 0.96 : 0.93).toDouble();
   }
 
   LifeRetirementCause _pickRetirementCause(int age, LifeChoice choice) {
@@ -944,6 +1114,21 @@ class LifeSimulator {
       (sum, injury) => sum + injury.daysAbsent,
     );
     return switch (cause) {
+      LifeRetirementCause.accident => LifeRetirementOutcome(
+        age: age,
+        cause: cause,
+        titleZh: '场外严重车祸终止生涯',
+        titleEn: 'A serious road crash ended the career',
+        contextZh:
+            '完成这次决定后的几天，你在离开训练基地的返程途中遭遇严重车祸。'
+            '手术保住了日常活动能力，但长期评估确认身体无法再承受职业比赛，'
+            '你的球员生涯在 $age 岁意外结束。',
+        contextEn:
+            'Days after this decision, you were seriously injured in a road '
+            'crash while returning from the training ground. Surgery '
+            'preserved everyday mobility, but long-term assessment ruled out '
+            'professional football, ending the career at $age.',
+      ),
       LifeRetirementCause.acuteInjury => LifeRetirementOutcome(
         age: age,
         cause: cause,

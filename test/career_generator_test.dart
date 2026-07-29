@@ -156,34 +156,74 @@ void main() {
       }
     });
 
-    test('random-length careers plan variable nodes and may retire early', () {
-      LifeSimulator? earlyRetirement;
-      for (var seed = 0; seed < 500 && earlyRetirement == null; seed++) {
+    test('open-ended careers grow one decision at a time up to age 60', () {
+      for (var seed = 0; seed < 80; seed++) {
         final simulator = LifeSimulator(
           nationality: '中国',
           position: '中前卫',
           density: CareerDecisionDensity.random,
           random: Random(seed),
         );
-        expect(simulator.totalStages, inInclusiveRange(6, 22));
+        expect(simulator.totalStages, 1);
+        var safetyCounter = 0;
         while (!simulator.isComplete) {
+          safetyCounter += 1;
+          expect(safetyCounter, lessThan(60));
+          final stage = simulator.currentStage;
+          for (final choice in stage.choices) {
+            expect(choice.retirementProbability, inExclusiveRange(0, 1));
+            expect(choice.accidentProbability, inExclusiveRange(0, 1));
+          }
+          final stagesBefore = simulator.totalStages;
           simulator.choose(
             simulator.decisions.length,
             simulator.currentStage.choices.length - 1,
           );
+          if (!simulator.isComplete) {
+            expect(simulator.totalStages, stagesBefore + 1);
+            expect(simulator.currentStage.age, greaterThan(stage.age));
+          }
         }
         expect(simulator.retirementOutcome, isNotNull);
-        if (simulator.retiredEarly) earlyRetirement = simulator;
+        expect(simulator.retirementOutcome!.age, inInclusiveRange(17, 60));
+        final player = simulator.finish(name: '开放生涯测试');
+        expect(player.retirementAge, inInclusiveRange(17, 60));
+        expect(player.retirementReason, isNot('未记录'));
+      }
+    });
+
+    test('the first open-ended choice can trigger an off-pitch accident', () {
+      final simulator = LifeSimulator(
+        nationality: '中国',
+        position: '中前卫',
+        density: CareerDecisionDensity.random,
+        random: _AlwaysZeroRandom(),
+      );
+
+      simulator.choose(0, 0);
+
+      expect(simulator.isComplete, isTrue);
+      expect(simulator.retirementOutcome!.cause, LifeRetirementCause.accident);
+      expect(simulator.retirementOutcome!.age, 17);
+      final player = simulator.finish(name: '首轮意外测试');
+      expect(player.stats.appearances, inInclusiveRange(5, 50));
+      expect(player.stats.nationalCaps, lessThanOrEqualTo(12));
+    });
+
+    test('an exceptionally lucky open-ended career can reach age 60', () {
+      final simulator = LifeSimulator(
+        nationality: '日本',
+        position: '中锋',
+        density: CareerDecisionDensity.random,
+        random: _AlwaysHighRandom(),
+      );
+
+      while (!simulator.isComplete) {
+        simulator.choose(simulator.decisions.length, 0);
       }
 
-      expect(earlyRetirement, isNotNull);
-      final player = earlyRetirement!.finish(name: '随机退役测试');
-      expect(player.retirementReason, isNot('未记录'));
-      expect(player.retirementContext, isNot('未记录'));
-      expect(
-        player.careerYearSnapshots,
-        hasLength(player.retirementAge - player.debutAge + 1),
-      );
+      expect(simulator.retirementOutcome!.age, 60);
+      expect(simulator.retirementOutcome!.cause, LifeRetirementCause.age);
     });
 
     test('provides at least 100 raw candidates in every career phase', () {
@@ -211,11 +251,12 @@ void main() {
         );
         expect(simulator.currentStage.choices.length, inInclusiveRange(3, 5));
         for (final choice in simulator.currentStage.choices) {
+          expect(choice.titleZh, contains('：'));
+          expect(choice.backgroundZh, contains('你当时效力于'));
+          expect(choice.decisionZh, startsWith('你'));
+          expect(choice.decisionZh, isNot(contains('确认后')));
           if (choice.causesTransfer) {
-            expect(choice.actionLabelZh, isNot(contains('留队')));
-            expect(choice.outcomeZh, contains('离开'));
-          } else {
-            expect(choice.outcomeZh, contains('不会转会'));
+            expect(choice.decisionZh, anyOf(contains('转会'), contains('租借')));
           }
         }
         simulator.choose(index, index % simulator.currentStage.choices.length);
@@ -290,4 +331,26 @@ void main() {
       expect(simulator.themeWeight(LifeEventTheme.health), greaterThan(before));
     });
   });
+}
+
+class _AlwaysZeroRandom implements Random {
+  @override
+  bool nextBool() => false;
+
+  @override
+  double nextDouble() => 0;
+
+  @override
+  int nextInt(int max) => 0;
+}
+
+class _AlwaysHighRandom implements Random {
+  @override
+  bool nextBool() => true;
+
+  @override
+  double nextDouble() => 0.999999;
+
+  @override
+  int nextInt(int max) => max - 1;
 }
