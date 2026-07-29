@@ -33,6 +33,29 @@ migrate_working_dir/
 .pub/
 /build/
 
+# Local secrets, signing material, and provider configuration
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+/android/key.properties
+/android/local.properties
+**/google-services.json
+**/GoogleService-Info.plist
+**/service-account*.json
+**/credentials*.json
+**/secrets*.json
+
+# Per-user IDE and Apple project state
+**/xcuserdata/
+*.xcuserstate
+
 # Symbolication related
 app.*.symbols
 
