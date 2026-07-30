@@ -117,8 +117,6 @@ class LifeChoice {
     required this.theme,
     required this.titleZh,
     required this.titleEn,
-    required this.backgroundZh,
-    required this.backgroundEn,
     required this.decisionZh,
     required this.decisionEn,
     required this.retirementProbability,
@@ -134,8 +132,6 @@ class LifeChoice {
   final LifeEventTheme theme;
   final String titleZh;
   final String titleEn;
-  final String backgroundZh;
-  final String backgroundEn;
   final String decisionZh;
   final String decisionEn;
   final double retirementProbability;
@@ -271,6 +267,7 @@ class LifeSimulator {
   final List<LifeDecision> decisions = [];
   final List<TransferRecord> _transfers = [];
   final List<InjurySpell> _injuries = [];
+  final List<_LifeChampionship> _championships = [];
   final List<_LifeCheckpoint> _checkpoints = [];
 
   late PlayerAttributes attributes;
@@ -402,6 +399,7 @@ class LifeSimulator {
     }
     if (choice.actionId != 'voluntary_retirement') {
       _maybeRecordInjury(stage, choice);
+      _maybeRecordChampionships(stage, choice);
     }
     decisions.add(
       LifeDecision(stage: stage, choice: choice, club: _currentClub.name),
@@ -427,7 +425,7 @@ class LifeSimulator {
         club: _currentClub.name,
         attributes: attributes,
         overallRating: overallRating,
-        eventZh: choice.titleZh,
+        eventZh: _eventWithChampionships(stage.age, choice.titleZh),
       ),
     );
 
@@ -457,7 +455,10 @@ class LifeSimulator {
         CareerChapter(
           age: decisions[index].stage.age,
           club: decisions[index].club,
-          event: decisions[index].choice.titleZh,
+          event: _eventWithChampionships(
+            decisions[index].stage.age,
+            decisions[index].choice.titleZh,
+          ),
           rating: _chapterRating(index, initialRating, peakRating),
         ),
     ];
@@ -484,7 +485,6 @@ class LifeSimulator {
     final nationalCaps = reputation < 48
         ? 0
         : min(careerYears * 12, ((reputation - 43) * 1.9).round());
-    final championships = max(0, (reputation + peakRating - 115) ~/ 12);
     final totalFees = _transfers.fold<double>(
       0,
       (total, transfer) => total + transfer.feeMillions,
@@ -508,7 +508,7 @@ class LifeSimulator {
       transferCount: _transfers.length,
       totalTransferFeeMillions: double.parse(totalFees.toStringAsFixed(1)),
       championships: [
-        for (var index = 0; index < championships; index++) '重要赛事冠军 ×1',
+        for (final championship in _championships) championship.labelZh,
       ],
       personalHonors: [
         if (reputation >= 65) '联赛最佳阵容',
@@ -645,8 +645,8 @@ class LifeSimulator {
       scenarioId: scenario.id,
       titleZh: scenario.titleZh,
       titleEn: scenario.titleEn,
-      contextZh: _stageContextZh(index, age),
-      contextEn: _stageContextEn(index, age),
+      contextZh: _eventBackgroundZh(index, age, scenario),
+      contextEn: _eventBackgroundEn(index, age, scenario),
       candidatePoolSize: raw.length,
       eligiblePoolSize: eligible.length,
       choices: [
@@ -657,8 +657,6 @@ class LifeSimulator {
             theme: candidate.scenario.theme,
             titleZh: _choiceTitleZh(candidate),
             titleEn: _choiceTitleEn(candidate),
-            backgroundZh: _choiceBackgroundZh(candidate, age),
-            backgroundEn: _choiceBackgroundEn(candidate, age),
             decisionZh: _decisionStoryZh(candidate),
             decisionEn: _decisionStoryEn(candidate),
             retirementProbability: _retirementProbabilityForAction(
@@ -744,18 +742,24 @@ class LifeSimulator {
     return summary;
   }
 
-  String _choiceBackgroundZh(LifeCandidate candidate, int age) {
-    final stakes = switch (candidate.scenario.theme) {
-      LifeEventTheme.training => '教练组只给出一个训练周期来检验改变，下一阶段的定位取决于你如何使用这段时间。',
-      LifeEventTheme.health => '队医、教练和你对风险的判断并不一致，眼前的出场机会与长期恢复发生了冲突。',
-      LifeEventTheme.club => '合同、出场顺位和外部报价同时摆到桌面上，经纪人要求你在窗口关闭前作出明确答复。',
-      LifeEventTheme.match => '比赛计划已经确定，但真正进入场上后，你必须决定以什么方式承担这一刻。',
-      LifeEventTheme.publicLife => '场外的回应会被队友、俱乐部和公众同时看见，也会改变接下来彼此合作的方式。',
+  String _eventBackgroundZh(int index, int age, LifeScenarioSeed scenario) {
+    final scene = switch (scenario.theme) {
+      LifeEventTheme.training =>
+        '清晨的录像室里还留着上一场比赛的剪辑，训练场边已经摆好额外器材。助理教练把未来几周的计划摊开，'
+            '说明一线队只会用一个训练周期检验改变，下一阶段的定位取决于你怎样分配训练与恢复。',
+      LifeEventTheme.health =>
+        '训练结束后，队医把检查影像、疼痛反馈和接下来的赛程放在同一张桌上。医疗组、教练和你对风险的判断并不一致，'
+            '周末的名单近在眼前，眼前的出场机会与几个月后的身体状态发生了正面冲突。',
+      LifeEventTheme.club =>
+        '转会窗口进入倒计时，训练基地楼上的会议室连续亮了几个晚上。合同年限、出场顺位和外部报价同时摆到桌面上，'
+            '教练强调球队计划，经纪人则要求你在窗口关闭前给出一份不会被误解的明确答复。',
+      LifeEventTheme.match =>
+        '比赛日前夜，战术板上的首发站位已经写好，球场外也开始聚集远道而来的球迷。教练交代了整体计划，'
+            '但真正进入高压回合以后，传球、对抗和最后一击都必须由你在几秒钟内作出判断。',
+      LifeEventTheme.publicLife =>
+        '第二天的训练尚未开始，采访邀约、队内消息和社交媒体讨论已经一起涌来。更衣室里有人等你解释，俱乐部公关也准备好了口径，'
+            '而你的回应会被队友、管理层和公众同时看见，并改变接下来彼此合作的方式。',
     };
-    final continuity = decisions.isEmpty
-        ? '这是你进入一线队后第一次必须亲自签字确认的决定。'
-        : '上一次你选择了“${decisions.last.choice.titleZh}”，'
-              '它已经改变了教练和队友看待你的方式。';
     final status = switch ((overallRating, age, _injuries.isNotEmpty)) {
       (>= 85, _, _) => '你正处在世界级表现区间，任何决定都会被当作核心球员的表态。',
       (>= 76, _, _) => '你已经进入主力竞争的上游，俱乐部希望你承担更多责任。',
@@ -765,33 +769,43 @@ class LifeSimulator {
         '你已经越过多数职业球员的常见退役区间，每个新赛季都需要重新评估代价。',
       _ => '你仍在争取稳定位置，这次选择会直接影响下一阶段的机会。',
     };
-    return '你当时 $age 岁，效力于${_currentClub.name}。'
-        '${candidate.scenario.contextZh}$stakes$continuity$status';
+    final recentHonor = _championships.isEmpty
+        ? ''
+        : '更衣室里仍保留着你随${_championships.last.club}赢得'
+              '${_championships.last.competition}后的记忆，但过去的冠军不会替你完成眼前的决定。';
+    return '${_stageContextZh(index, age)}\n\n'
+        '你当时 $age 岁，效力于${_currentClub.name}。${scenario.contextZh}$scene'
+        '$status$recentHonor现在，所有人都在等你从下面几条道路中选出真正要执行的一条。';
   }
 
-  String _choiceBackgroundEn(LifeCandidate candidate, int age) {
-    final stakes = switch (candidate.scenario.theme) {
+  String _eventBackgroundEn(int index, int age, LifeScenarioSeed scenario) {
+    final scene = switch (scenario.theme) {
       LifeEventTheme.training =>
-        'The staff will judge the change over one training cycle, and your '
-            'next role depends on how you use it.',
+        'The previous match is still looping in the early-morning video room, '
+            'while extra equipment waits beside the training pitch. The staff '
+            'will judge any change over one training cycle, so your next role '
+            'depends on how you divide work and recovery.',
       LifeEventTheme.health =>
-        'You, the doctor and the coach read the risk differently, putting an '
-            'immediate opportunity against long-term recovery.',
+        'After training, the doctor lays scans, pain reports and the coming '
+            'fixtures on one table. You, the medical staff and the coach read '
+            'the risk differently, placing this weekend against the condition '
+            'of your body months from now.',
       LifeEventTheme.club =>
-        'Contract terms, squad order and outside interest are all on the '
-            'table, and your agent needs an answer before the window closes.',
+        'With the transfer window counting down, the meeting room above the '
+            'training ground has stayed lit for several nights. Contract terms, '
+            'squad order and outside offers are all on the table, and your agent '
+            'needs an answer that cannot be mistaken before the deadline.',
       LifeEventTheme.match =>
-        'The match plan is set, but once play begins you must decide how to '
-            'carry this moment.',
+        'On the eve of the match, the starting shape is already written on the '
+            'tactics board and travelling supporters are gathering outside. '
+            'The plan is set, but the pass, duel or final touch under pressure '
+            'will still be yours to judge in a few seconds.',
       LifeEventTheme.publicLife =>
-        'Teammates, the club and the public will all see the response, which '
-            'will shape how you work together next.',
+        'Before the next session begins, interview requests, dressing-room '
+            'messages and online debate arrive together. Teammates want an '
+            'explanation and the club has prepared its line, but everyone will '
+            'see your response and remember how you chose to handle it.',
     };
-    final continuity = decisions.isEmpty
-        ? 'This is the first first-team decision that requires your own '
-              'explicit approval.'
-        : 'Your previous choice—“${decisions.last.choice.titleEn}”—has already '
-              'changed how the staff and dressing room read your intentions.';
     final status = switch ((overallRating, age, _injuries.isNotEmpty)) {
       (>= 85, _, _) =>
         'You are performing at world-class level, so every choice is read as '
@@ -809,8 +823,16 @@ class LifeSimulator {
         'You are still fighting for a stable place, and this decision will '
             'shape the next opportunity.',
     };
-    return 'You are $age and playing for ${_currentClub.name}. '
-        '${candidate.scenario.contextEn} $stakes $continuity $status';
+    final recentHonor = _championships.isEmpty
+        ? ''
+        : ' The dressing room still remembers winning the '
+              '${_championships.last.competition} with '
+              '${_championships.last.club}, but that medal cannot make this '
+              'decision for you.';
+    return '${_stageContextEn(index, age)}\n\n'
+        'You are $age and playing for ${_currentClub.name}. '
+        '${scenario.contextEn} $scene $status$recentHonor Everyone now waits '
+        'for you to choose one course below and carry it through.';
   }
 
   String _decisionStoryZh(LifeCandidate candidate) {
@@ -1131,6 +1153,162 @@ class LifeSimulator {
     );
   }
 
+  void _maybeRecordChampionships(LifeStage stage, LifeChoice choice) {
+    if (stage.age < 17) return;
+    final clubStrength = switch (_currentClub.level) {
+      1 => 1.0,
+      2 => 0.72,
+      3 => 0.45,
+      _ => 0.18,
+    };
+    final ability = ((overallRating - 58) / 34).clamp(0.0, 1.0);
+    final reputation = ((attributes[PlayerAttribute.reputation] - 40) / 45)
+        .clamp(0.0, 1.0);
+    final season = _seasonForAge(stage.age);
+    final injuredThisSeason =
+        _injuries.isNotEmpty && _injuries.last.season == season;
+    final availability = injuredThisSeason ? 0.72 : 1.0;
+    final matchMomentum =
+        choice.theme == LifeEventTheme.match &&
+            const {'creative', 'lead', 'hero'}.contains(choice.actionId)
+        ? 0.025
+        : 0.0;
+
+    _rollChampionship(
+      age: stage.age,
+      season: season,
+      competition: _leagueCompetition(_currentClub.country),
+      probability:
+          (0.035 +
+              clubStrength * 0.29 +
+              ability * 0.09 +
+              reputation * 0.04 +
+              matchMomentum) *
+          availability,
+    );
+    _rollChampionship(
+      age: stage.age,
+      season: season,
+      competition: _cupCompetition(_currentClub.country),
+      probability:
+          (0.025 + clubStrength * 0.12 + ability * 0.055 + matchMomentum) *
+          availability,
+    );
+    if (_currentClub.level <= 3) {
+      _rollChampionship(
+        age: stage.age,
+        season: season,
+        competition: _continentalCompetition(_currentClub.country),
+        probability:
+            (0.004 +
+                clubStrength * 0.07 +
+                ability * 0.035 +
+                matchMomentum / 2) *
+            availability,
+      );
+    }
+  }
+
+  void _rollChampionship({
+    required int age,
+    required String season,
+    required String competition,
+    required double probability,
+  }) {
+    if (_random.nextDouble() >= probability.clamp(0.0, 0.55)) return;
+    final championship = _LifeChampionship(
+      age: age,
+      season: season,
+      club: _currentClub.name,
+      competition: competition,
+    );
+    if (_championships.any(
+      (item) =>
+          item.season == championship.season &&
+          item.club == championship.club &&
+          item.competition == championship.competition,
+    )) {
+      return;
+    }
+    _championships.add(championship);
+  }
+
+  String _eventWithChampionships(int age, String event) {
+    final competitions = _championships
+        .where((item) => item.age == age)
+        .map((item) => item.competition)
+        .toList();
+    if (competitions.isEmpty) return event;
+    return '$event；随${_championships.firstWhere((item) => item.age == age).club}'
+        '赢得${competitions.join('、')}冠军';
+  }
+
+  String _seasonForAge(int age) {
+    final birthYear = 2011 - _stageAges.first;
+    final year = birthYear + age;
+    return '$year/${year + 1}';
+  }
+
+  String _leagueCompetition(String country) => switch (country) {
+    '英格兰' => '英格兰超级联赛',
+    '西班牙' => '西班牙足球甲级联赛',
+    '德国' => '德国足球甲级联赛',
+    '法国' => '法国足球甲级联赛',
+    '意大利' => '意大利足球甲级联赛',
+    '葡萄牙' => '葡萄牙超级联赛',
+    '奥地利' => '奥地利足球甲级联赛',
+    '巴西' => '巴西足球甲级联赛',
+    '阿根廷' => '阿根廷足球甲级联赛',
+    '美国' => '美国职业足球大联盟',
+    '墨西哥' => '墨西哥足球超级联赛',
+    '日本' => '日本J1联赛',
+    '韩国' => '韩国K联赛1',
+    '沙特阿拉伯' => '沙特职业联赛',
+    '阿联酋' => '阿联酋职业联赛',
+    '埃及' => '埃及超级联赛',
+    '摩洛哥' => '摩洛哥足球甲级联赛',
+    '南非' => '南非足球超级联赛',
+    '突尼斯' => '突尼斯足球甲级联赛',
+    '新西兰' => '新西兰全国联赛',
+    _ => '$country顶级联赛',
+  };
+
+  String _cupCompetition(String country) => switch (country) {
+    '英格兰' => '英格兰足总杯',
+    '西班牙' => '西班牙国王杯',
+    '德国' => '德国足协杯',
+    '法国' => '法国杯',
+    '意大利' => '意大利杯',
+    '葡萄牙' => '葡萄牙杯',
+    '奥地利' => '奥地利杯',
+    '巴西' => '巴西杯',
+    '阿根廷' => '阿根廷杯',
+    '美国' => '美国公开杯',
+    '墨西哥' => '墨西哥冠军杯',
+    '日本' => '日本天皇杯',
+    '韩国' => '韩国杯',
+    '沙特阿拉伯' => '沙特国王杯',
+    '阿联酋' => '阿联酋总统杯',
+    '埃及' => '埃及杯',
+    '摩洛哥' => '摩洛哥王座杯',
+    '南非' => '南非足总杯',
+    '突尼斯' => '突尼斯杯',
+    '新西兰' => '新西兰查塔姆杯',
+    _ => '$country全国杯赛',
+  };
+
+  String _continentalCompetition(String country) {
+    return switch (FootballCatalog.confederationForCountry(country)) {
+      'UEFA' => '欧洲冠军联赛',
+      'CONMEBOL' => '南美解放者杯',
+      'Concacaf' => '中北美洲及加勒比海冠军杯',
+      'AFC' => '亚足联冠军精英联赛',
+      'CAF' => '非洲冠军联赛',
+      'OFC' => '大洋洲冠军联赛',
+      _ => '洲际俱乐部冠军赛',
+    };
+  }
+
   void _maybeRecordInjury(LifeStage stage, LifeChoice choice) {
     final base =
         injuryRisk +
@@ -1139,11 +1317,9 @@ class LifeSimulator {
     final themeBonus = choice.theme == LifeEventTheme.health ? 14 : 0;
     if (_random.nextInt(240) >= base + themeBonus) return;
     final days = 7 + _random.nextInt(55) + injuryRisk ~/ 3;
-    final birthYear = 2011 - _stageAges.first;
-    final year = birthYear + stage.age;
     _injuries.add(
       InjurySpell(
-        season: '$year/${year + 1}',
+        season: _seasonForAge(stage.age),
         type: _injuryTypes[_random.nextInt(_injuryTypes.length)],
         daysAbsent: days,
         matchesMissed: max(1, (days / 7 * 1.4).round()),
@@ -1189,11 +1365,12 @@ class LifeSimulator {
     final projectedTrainingLoad = (trainingLoad + action.trainingLoadDelta)
         .clamp(0, 100);
     var probability = switch (age) {
-      <= 20 => 0.008,
-      <= 24 => 0.012,
-      <= 27 => 0.020,
-      <= 30 => 0.045,
-      <= 32 => 0.090,
+      <= 20 => 0.003,
+      <= 24 => 0.004,
+      <= 27 => 0.007,
+      <= 29 => 0.012,
+      <= 30 => 0.035,
+      <= 32 => 0.075,
       <= 34 => 0.160,
       <= 36 => 0.260,
       <= 38 => 0.380,
@@ -1224,6 +1401,9 @@ class LifeSimulator {
         action.id == 'report' ||
         action.id == 'specialist') {
       probability *= 0.68;
+    }
+    if (age < 30) {
+      probability *= ProbabilitySources.under30RetirementRiskScale;
     }
     return probability.clamp(0.001, age >= 56 ? 0.96 : 0.93).toDouble();
   }
@@ -1635,6 +1815,22 @@ const _voluntaryRetirementAction = LifeActionSeed(
 );
 
 const _injuryTypes = ['肌肉拉伤', '脚踝扭伤', '膝部炎症', '腿筋伤势', '撞击伤'];
+
+class _LifeChampionship {
+  const _LifeChampionship({
+    required this.age,
+    required this.season,
+    required this.club,
+    required this.competition,
+  });
+
+  final int age;
+  final String season;
+  final String club;
+  final String competition;
+
+  String get labelZh => '$age 岁 · $season 赛季 · $club · $competition冠军';
+}
 
 class _LifeCheckpoint {
   const _LifeCheckpoint({

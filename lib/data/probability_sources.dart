@@ -19,7 +19,7 @@ class ProbabilitySource {
 }
 
 abstract final class ProbabilitySources {
-  static const dataVersion = '2026.07-public-v6';
+  static const dataVersion = '2026.07-public-v7';
 
   static const sources = <ProbabilitySource>[
     ProbabilitySource(
@@ -101,6 +101,15 @@ abstract final class ProbabilitySources {
       appliedTo: ['随机长度模式的伤病、高龄与其他退役原因权重'],
     ),
     ProbabilitySource(
+      id: 'professional-football-career-longevity-2025',
+      title: 'Establishing normal career longevity in professional footballers',
+      publisher: 'Knee Surgery, Sports Traumatology, Arthroscopy',
+      publishedYear: 2025,
+      scope: '4,117 名英格兰前四级联赛男子球员；外场球员平均生涯 11.6 年、门将 12.4 年，高水平与国家队球员生涯更长',
+      url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC12392379/',
+      appliedTo: ['30 岁前开放生涯退役基准', '能力与职业长度的关系'],
+    ),
+    ProbabilitySource(
       id: 'fifpro-global-employment-report-2016',
       title: 'FIFPRO Global Employment Report 2016',
       publisher: 'FIFPRO',
@@ -166,6 +175,11 @@ abstract final class ProbabilitySources {
   static const professionalMortalityAccidentShare = 0.25;
   static const severeOffPitchAccidentProxyPerYear =
       professionalMortalityPerPlayerYear * professionalMortalityAccidentShare;
+
+  // Product calibration: younger elite prospects should usually continue.
+  // This multiplier applies after health, workload and action modifiers, while
+  // preserving a non-zero chance of serious injury or other career endings.
+  static const under30RetirementRiskScale = 0.48;
 
   // FIFPRO describes retirement in the early thirties rather than publishing
   // a single global mean. Age 33 is therefore a transparent product anchor:

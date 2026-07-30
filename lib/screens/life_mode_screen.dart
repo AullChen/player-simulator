@@ -123,12 +123,9 @@ class _CareerStage extends StatelessWidget {
           context.tr(stage.titleZh, stage.titleEn),
           style: Theme.of(context).textTheme.displaySmall,
         ),
-        const SizedBox(height: 10),
-        Text(
-          context.tr(stage.contextZh, stage.contextEn),
-          style: Theme.of(context).textTheme.bodyLarge,
-        ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 14),
+        _EventStoryPanel(text: context.tr(stage.contextZh, stage.contextEn)),
+        const SizedBox(height: 14),
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -377,6 +374,7 @@ class _ChoiceCard extends StatelessWidget {
       child: Card(
         clipBehavior: Clip.antiAlias,
         child: InkWell(
+          key: ValueKey('life-choice-$index'),
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.all(18),
@@ -413,19 +411,15 @@ class _ChoiceCard extends StatelessWidget {
                           height: 1.35,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      _StoryBeat(
-                        label: context.tr('当时', 'Situation'),
-                        text: context.tr(
-                          choice.backgroundZh,
-                          choice.backgroundEn,
+                      const SizedBox(height: 8),
+                      Text(
+                        context.tr(choice.decisionZh, choice.decisionEn),
+                        style: const TextStyle(
+                          color: Color(0xFF465568),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          height: 1.55,
                         ),
-                      ),
-                      const SizedBox(height: 9),
-                      _StoryBeat(
-                        label: context.tr('你的决定', 'Your decision'),
-                        text: context.tr(choice.decisionZh, choice.decisionEn),
-                        emphasized: true,
                       ),
                     ],
                   ),
@@ -440,52 +434,57 @@ class _ChoiceCard extends StatelessWidget {
   }
 }
 
-class _StoryBeat extends StatelessWidget {
-  const _StoryBeat({
-    required this.label,
-    required this.text,
-    this.emphasized = false,
-  });
+class _EventStoryPanel extends StatelessWidget {
+  const _EventStoryPanel({required this.text});
 
-  final String label;
   final String text;
-  final bool emphasized;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
       decoration: BoxDecoration(
-        color: emphasized ? const Color(0xFFEAF2F8) : const Color(0xFFF7F8FA),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: emphasized ? const Color(0xFF9AB6D2) : const Color(0xFFD7DDE4),
-        ),
+        color: const Color(0xFFF4F7FA),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFD7DDE4)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: emphasized ? const Color(0xFF2E5D9F) : AppColors.muted,
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.7,
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(width: 4, color: const Color(0xFF2E5D9F)),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 16, 18, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      context.tr('事件背景', 'EVENT CONTEXT'),
+                      style: const TextStyle(
+                        color: Color(0xFF2E5D9F),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      text,
+                      style: const TextStyle(
+                        color: AppColors.ink,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        height: 1.72,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            text,
-            style: TextStyle(
-              color: emphasized ? AppColors.ink : const Color(0xFF465568),
-              fontSize: 12,
-              fontWeight: emphasized ? FontWeight.w700 : FontWeight.w500,
-              height: 1.55,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

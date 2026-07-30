@@ -311,12 +311,16 @@ void main() {
           hasLength(simulator.currentStage.choices.length),
         );
         expect(simulator.currentStage.categoryZh, isNotEmpty);
+        expect(
+          simulator.currentStage.contextZh,
+          contains('你当时 ${simulator.currentStage.age} 岁'),
+        );
+        expect(
+          simulator.currentStage.contextZh,
+          contains(simulator.currentClub),
+        );
         for (final choice in simulator.currentStage.choices) {
           expect(choice.titleZh, isNot(contains('：')));
-          expect(
-            choice.backgroundZh,
-            contains('你当时 ${simulator.currentStage.age} 岁'),
-          );
           expect(choice.decisionZh, startsWith('你'));
           expect(choice.decisionZh, isNot(contains('确认后')));
           if (choice.causesTransfer) {
@@ -361,15 +365,62 @@ void main() {
 
       simulator.choose(0, 0);
 
-      expect(
-        simulator.currentStage.choices.every(
-          (choice) => choice.backgroundZh.contains(previousTitle),
-        ),
-        isTrue,
-      );
+      expect(simulator.currentStage.contextZh, contains(previousTitle));
       expect(
         simulator.currentStage.scenarioId,
         isNot(simulator.decisions.last.stage.scenarioId),
+      );
+    });
+
+    test('records exact season club and competition after each choice', () {
+      final simulator = LifeSimulator(
+        nationality: '中国',
+        position: '中前卫',
+        density: CareerDecisionDensity.everyYear,
+        random: _AlwaysZeroRandom(),
+      );
+
+      while (!simulator.isComplete) {
+        final choiceIndex = simulator.currentStage.choices.indexWhere(
+          (choice) => choice.actionId != 'voluntary_retirement',
+        );
+        simulator.choose(simulator.decisions.length, choiceIndex);
+      }
+      final player = simulator.finish(name: '冠军档案测试');
+
+      expect(player.stats.championships, isNotEmpty);
+      expect(
+        player.stats.championships,
+        everyElement(matches(RegExp(r'^\d+ 岁 · \d{4}/\d{4} 赛季 · .+ · .+冠军$'))),
+      );
+      expect(player.stats.championships, isNot(contains('重要赛事冠军 ×1')));
+      expect(
+        player.career.any((chapter) => chapter.event.contains('赢得')),
+        isTrue,
+      );
+    });
+
+    test('keeps ordinary pre-30 retirement risk low', () {
+      final highModel = PlayerAttributes({
+        for (final attribute in PlayerAttribute.values) attribute: 80,
+      });
+      final simulator = LifeSimulator(
+        nationality: '中国',
+        position: '中前卫',
+        density: CareerDecisionDensity.milestones,
+        random: _AlwaysHighRandom(),
+        initialAttributes: highModel,
+      );
+
+      while (simulator.currentStage.age < 29) {
+        simulator.choose(simulator.decisions.length, 0);
+      }
+
+      expect(
+        simulator.currentStage.choices
+            .map((choice) => choice.retirementProbability)
+            .reduce(max),
+        lessThan(0.02),
       );
     });
 

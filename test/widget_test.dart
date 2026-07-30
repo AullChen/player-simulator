@@ -218,17 +218,18 @@ void main() {
     expect(find.text('球探总评'), findsOneWidget);
     expect(find.text('当前能力'), findsOneWidget);
     expect(find.textContaining('本轮主题：'), findsOneWidget);
-    expect(find.text('当时'), findsWidgets);
-    expect(find.text('你的决定'), findsWidgets);
+    expect(find.text('事件背景'), findsOneWidget);
+    expect(find.text('当时'), findsNothing);
+    expect(find.text('你的决定'), findsNothing);
     expect(find.textContaining('确认结果：'), findsNothing);
     expect(find.textContaining('留队 ·'), findsNothing);
 
     await tester.scrollUntilVisible(
-      find.text('你的决定').first,
+      find.byKey(const ValueKey('life-choice-0')),
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('你的决定').first);
+    await tester.tap(find.byKey(const ValueKey('life-choice-0')));
     await tester.pumpAndSettle();
 
     expect(find.text('球探总评'), findsOneWidget);
